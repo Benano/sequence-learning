@@ -1,0 +1,2 @@
+# the beginning of fur elise: 7 neurons, 12 steps long
+6, 0, 1, 0, 1, 0, 4, 2, 3, 5, 5, 5
