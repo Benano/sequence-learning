@@ -117,6 +117,8 @@ class Network:
 
     def _compute_update(self, u_inp):
         # Compute delayed rates
+
+        self.u_inp = u_inp
         self.r_den = self.rate_buffer.get(self.dt_dendritic_delays)
         self.r_exc = self.rate_buffer.get(self.dt_somatic_delays)
         self.r_inh = self.rate_buffer.get(self.dt_interneuron_delays)
@@ -129,7 +131,7 @@ class Network:
             r_den=self.r_den,
             r_exc=self.r_exc,
             r_inh=self.r_inh,
-            u_inp=u_inp,
+            u_inp=self.u_inp,
             w_som=self.somatic_weights,
             C_v=self.neuron_params.C_v,
             C_u=self.neuron_params.C_u,
