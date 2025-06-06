@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import pickle
 from typing import Tuple
 
 import numba
@@ -48,25 +49,52 @@ class Network:
         self.r_exc = np.ones(self.num_all) * self.r_rest
         self.r_inh = np.ones(self.num_all) * self.r_rest
 
+        self.view_visible = np.s_[: self.num_vis]
+        self.view_latent = np.s_[self.num_vis :]
+        self.view_vis_lat = np.s_[: self.num_vis, self.num_vis :]
+        self.view_vis_vis = np.s_[: self.num_vis, : self.num_vis]
+        self.view_lat_vis = np.s_[self.num_vis :, : self.num_vis]
+        self.view_lat_lat = np.s_[self.num_vis :, self.num_vis :]
+
+        self.views = {
+            "all": np.s_[:],
+            "visible": self.view_visible,
+            "latent": self.view_latent,
+            "vis_lat": self.view_vis_lat,
+            "vis_vis": self.view_vis_vis,
+            "lat_vis": self.view_lat_vis,
+            "lat_lat": self.view_lat_lat,
+        }
+
         self.dt = None
 
-    def get_output(self):
+    def get_val(self, attribute_name, view="all"):  #
         """
-        Retrieve the output of visible neurons.
+        Retrieve the specified attribute for the given neuron type.
 
-        :returns: Copy of activation values for visible neurons
+        :param attribute_name: Name attribute to retrieve (e.g., 'v', 'u', 'r', 'r_bar')
+        :param neuron_type: Type of neurons to retrieve ('all', 'visible', or 'latent')
+        :returns: Copy of the requested attribute values
         :rtype: numpy.ndarray
 
-        .. note::
-            Returns a copy of the first `num_vis` neurons' activation values to prevent
-            unintended modifications of the network's internal state.
-
-        .. seealso::
-            * `self.u`: Internal activation array
-            * `self.num_vis`: Number of visible neurons
-
+        :raises AttributeError: If the specified attribute doesn't exist
+        :raises ValueError: If an invalid neuron_type is provided
         """
-        return np.copy(self.u[: self.num_vis])
+        if not hasattr(self, attribute_name):
+            raise AttributeError(f"Attribute '{attribute_name}' does not exist")
+
+        attribute = getattr(self, attribute_name)
+
+        if not isinstance(attribute, np.ndarray):
+            raise AttributeError(f"Attribute '{attribute_name}' is not an array")
+
+        if view not in self.views:
+            raise ValueError(
+                "Invalid view. Must be 'all', 'visible', 'latent', \
+                'vis_lat', 'vis_vis', 'lat_vis', or 'lat_lat'"
+            )
+
+        return np.copy(attribute[self.views[view]])
 
     def _compute_buffer_depth(self, dt):
         max_buffer_ms = max(max(self.dendritic_delays), max(self.interneuron_delays))
@@ -120,19 +148,13 @@ class Network:
         return dudt, dvdt, dwdt, dr_bar_dt
 
     def _update_weights(self, dwdt):
-        # Vis view
-        dwdt_vis = dwdt[: self.num_vis, : self.num_vis]
+        dwdt_full = self.optimizer_lat.get_update(self.dendritic_weights, dwdt)
+        dwdt_vis = self.optimizer_vis.get_update(
+            self.dendritic_weights[self.view_vis_vis], dwdt[self.view_vis_vis]
+        )
+        dwdt_full[self.view_vis_vis] = dwdt_vis
 
-        # Update Vis
-        w_vis = self.dendritic_weights[: self.num_vis, : self.num_vis]
-        w_vis_update = self.optimizer_vis.get_update(w_vis, dwdt_vis) * self.dt
-        self.dendritic_weights[: self.num_vis, : self.num_vis] += w_vis_update
-
-        # Update Rest
-        dwdt_vis[:] = 0  # Set vis slice to 0
-        w_rest = self.dendritic_weights
-        w_rest_update = self.optimizer_lat.get_update(w_rest, dwdt) * self.dt
-        self.dendritic_weights += w_rest_update
+        self.dendritic_weights += dwdt_full * self.dt
 
     def _update_dyanmic_variables(self, dudt, dvdt, dr_bar_dt):
         self.u += dudt * self.dt
@@ -149,6 +171,29 @@ class Network:
         self._update_dyanmic_variables(dudt, dvdt, dr_bar_dt)
         self._update_weights(dwdt)
         self._update_rates_and_buffer()
+
+    def save(self, path: str) -> None:
+        """
+        Save the tracker object to a file.
+
+        :param path: File path to save the tracker.
+        :type path: str
+        """
+        with open(path, "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def load(cls, path: str):
+        """
+        Load a tracker object from a file.
+
+        :param path: File path to load the tracker from.
+        :type path: str
+        :return: The loaded tracker object.
+        :rtype: Tracker
+        """
+        with open(path, "rb") as f:
+            return pickle.load(f)
 
 
 #####################################

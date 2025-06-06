@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "elise"  # TODO change name, and also the folder name in src/seqlearn
-version = "0.1"
+version = "0.3.0"
 description = "Implementation of the sequence learning model by Kriener et al., 2024"
 readme = "README.md"
 authors =[
@@ -22,6 +22,9 @@ classifiers = [
 dependencies = [  # TODO: add
     "numpy >= 1.24",
     "matplotlib >= 3.7",
+    "numba",
+    "scipy",
+    "tqdm",
 ]
 requires-python = ">=3.9"
 

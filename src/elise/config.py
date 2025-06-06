@@ -1,7 +1,7 @@
 #!
 # /usr/bin/env python3
 import tomllib as toml
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from typing import Any, Dict, Tuple
 
 
@@ -35,6 +35,9 @@ class SimulationConfig:
     input: str = "test"
     dt: float = 0.01
     pattern_dt: float = 0.25
+    pattern_duration: float = 100.0
+    replay_epochs: int = 10
+    training_epochs: int = 10
     training_cycles: int = 1000
     validation_cycles: int = 100
     replay_cycles: int = 100
@@ -57,6 +60,16 @@ class NeuronConfig:
     a: float = 0.3
     b: float = -58.0
     lam: float = 0.6
+
+
+@dataclass(slots=True)
+class TrackingConfig:
+    sim_step: int = 2
+    epoch_step: int = 1
+    vars_train: list = field(default_factory=list)
+    vars_epoch: list = field(default_factory=list)
+    vars_replay: list = field(default_factory=list)
+    vars_val: list = field(default_factory=list)
 
 
 class Config:
@@ -104,10 +117,13 @@ class FullConfig:
         self.neuron_params = self._create_config(
             NeuronConfig, config.get_section("neuron_params")
         )
+        self.tracking_params = self._create_config(
+            TrackingConfig, config.get_section("tracking_params")
+        )
 
     def _create_config(self, config_class: Config, config_dict: Dict[str, Any]):
         kwargs = {}
-        for field in fields(config_class):
-            if field.name in config_dict:
-                kwargs[field.name] = config_dict[field.name]
+        for f in fields(config_class):
+            if f.name in config_dict:
+                kwargs[f.name] = config_dict[f.name]
         return config_class(**kwargs)

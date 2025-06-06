@@ -4,7 +4,14 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from elise.data import Dataloader, MultiHotPattern, OneHotPattern, Pattern
+from elise.data import (
+    CirclePattern,
+    ContinuousDataloader,
+    Dataloader,
+    MultiHotPattern,
+    OneHotPattern,
+    Pattern,
+)
 
 DT = 0.1
 
@@ -148,6 +155,37 @@ def test_multihot(multihot_pattern):
     assert_allclose(multihot_pattern[:, :], expected)
 
 
+###############################
+# Test the contineous pattern #
+###############################
+
+
+@pytest.fixture()
+def circle_pattern():
+    def factory(radius=0.5, center_x=0.5, center_y=0.5, period=1.0):
+        return CirclePattern(
+            radius=radius, center_x=center_x, center_y=center_y, period=period
+        )
+
+    return factory
+
+
+def test_circle_pattern_attributes(circle_pattern):
+    circle = circle_pattern(radius=1.0, center_x=0.5, center_y=-0.5, period=3.0)
+    assert circle.radius == 1.0
+    assert circle.center_x == 0.5
+    assert circle.center_y == -0.5
+    assert circle.duration == 3.0
+
+
+@pytest.mark.parametrize("t", [0.0, 0.5, 0.7])
+def test_circle_pattern_call(circle_pattern, t):
+    radius, center_x, center_y, period = 1.0, 0.0, 0.0, 1.0
+    circle = circle_pattern(radius, center_x, center_y, period)
+    exp = np.array([np.cos(2 * np.pi * t), np.sin(2 * np.pi * t)])
+    assert_allclose(circle(t), exp)
+
+
 ###################
 # Test Dataloader #
 ###################
@@ -258,3 +296,63 @@ class TestDataloader:
             assert_allclose(pat, base_sequence[idx % len(base_sequence)])
             t_exp += 0.1
             idx += 1
+
+    def test_Dataloader_factory_error(self, dataloader_factory):
+        with pytest.raises(TypeError):
+            dataloader_factory(pattern="Not a Pattern.")
+
+
+#############################
+# Test ContinuousDataloader #
+#############################
+
+
+@pytest.fixture()
+def contineous_dataloader_factory(circle_pattern):
+    def factory(pattern=None, pre_transforms=[], online_transforms=[]):
+        if pattern is None:
+            pattern = circle_pattern()
+        return Dataloader(
+            pattern, pre_transforms=pre_transforms, online_transforms=online_transforms
+        )
+
+    return factory
+
+
+class TestContiDataloader:
+    def test_bla(self, contineous_dataloader_factory):
+        dl = contineous_dataloader_factory()
+        assert isinstance(dl, ContinuousDataloader)
+        assert isinstance(dl(0), np.ndarray)
+
+    @pytest.mark.parametrize("t", [0.0, 0.1, 0.4])
+    def test_call(self, contineous_dataloader_factory, circle_pattern, t):
+        circle = circle_pattern()
+        dataloader = contineous_dataloader_factory()
+        res = dataloader(t)
+        exp = circle(t)
+        assert_allclose(res, exp)
+
+    @pytest.mark.parametrize(
+        "t",
+        [
+            0.0,
+            0.1,
+            0.4,
+        ],
+    )
+    def test_pretransforms(
+        self,
+        contineous_dataloader_factory,
+        transform_plus,
+        transform_mult,
+        circle_pattern,
+        t,
+    ):
+        dataloader = contineous_dataloader_factory(
+            pre_transforms=[transform_mult, transform_plus]
+        )
+        circle = circle_pattern()
+        res = dataloader(t)
+        exp = transform_plus(transform_mult(circle(t)))
+        assert_allclose(res, exp)
