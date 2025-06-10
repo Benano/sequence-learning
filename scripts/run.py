@@ -71,12 +71,11 @@ def main():
         custom_run_id=run_id)
 
     # Import your main function (assuming it's in the same directory as run.py)
-    # from experiment import main as experiment_main
-    # experiment_main(full_config, run_path, artifact_path, pattern_path, neptune_run)
+    from experiment import main as experiment_main
+    experiment_main(full_config, run_path, artifact_path, pattern_path, neptune_run)
 
     from plotting import main as plotting_main
     plotting_main(full_config, run_path, artifact_path, figure_path, neptune_run)
-
 
 if __name__ == "__main__":
     main()
