@@ -6,6 +6,7 @@ A simple experiment script
 from pathlib import Path
 import numpy as np
 from tqdm import tqdm
+import neptune
 
 from elise.config import FullConfig
 from elise.data import Dataloader, MultiHotPattern
@@ -15,22 +16,42 @@ from elise.rate_buffer import Buffer
 from elise.stats import mse, window_slider
 from elise.tracker import Tracker
 from elise.weights import DendriticWeights, SomaticWeights
+import ast
 
+# Pattern & Dataloader
+def get_pattern_from_txt(filename):
+    with open(filename, "r") as file:
+        content = file.read().strip()
+
+    result = ast.literal_eval(f"[{content}]")
+
+    return result
 
 def compute_loss(output, target, loss_function):
     metric = window_slider(output, target, loss_function)
     loss = np.min(metric)
     return loss
 
+def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
 
-def main(path):
-    # Config
-    full_config = FullConfig(path / "config.toml")
+    experiment_params = full_config.experiment_params
     neuron_params = full_config.neuron_params
     network_params = full_config.network_params
     simulation_params = full_config.simulation_params
     weight_params = full_config.weight_params
     track_params = full_config.tracking_params
+
+    pattern_file = pattern_path / f"{experiment_params.pattern}.txt"
+    raw_pattern = get_pattern_from_txt(pattern_file)
+
+    pattern = MultiHotPattern(
+        pattern=raw_pattern,
+        duration=simulation_params.pattern_duration,
+        width=network_params.num_vis,
+    )
+    def to_biounits(x):
+        return neuron_params.E_l + x * 20.0
+    loader = Dataloader(pattern, pre_transforms=[to_biounits])
 
     # Network
     rate_buffer = Buffer
@@ -48,20 +69,6 @@ def main(path):
     optimizer_lat = optimizer(eta_lat)
     optimizer_vis = optimizer(eta_vis)
     network.prepare_for_simulation(dt, optimizer_vis, optimizer_lat)
-
-    def to_biounits(x):
-        return neuron_params.E_l + x * 20.0
-
-    elise = np.loadtxt(path / "fuer_elise_short.txt", skiprows=1, delimiter=",").astype(
-        int
-    )
-
-    pattern = MultiHotPattern(
-        pattern=elise,
-        duration=simulation_params.pattern_duration,
-        width=network_params.num_vis,
-    )
-    loader = Dataloader(pattern, pre_transforms=[to_biounits])
 
     # Every track params sim_step
     u_target = loader.get_full_pattern(dt)[::track_params.sim_step]
@@ -90,34 +97,36 @@ def main(path):
         for t in np.arange(0, training_duration, simulation_params.dt):
 
             network(u_inp=loader(t))
-            train_tracker.track(t)
+
+            # Only track the last two epochs
+            if epoch >= simulation_params.training_epochs - 2:
+                train_tracker.track(t)
 
         # Add learning rate decay
         network.optimizer_vis.eta *= 0.98
         network.optimizer_lat.eta *= 0.98
 
         # Validation
-        if epoch != simulation_params.training_epochs - 1:
-            for t in np.arange(0, validation_duration, simulation_params.dt):
-                network(u_inp=None)
-                validation_tracker.track(t)
+        # if epoch != simulation_params.training_epochs - 1:
+        for t in np.arange(0, validation_duration, simulation_params.dt):
+            network(u_inp=None)
+            validation_tracker.track(t)
 
-            u_out = np.array(validation_tracker["u_visible"])[-2 * len(u_target) :]
-            r_out = np.array(validation_tracker["r_visible"])[-2 * len(u_target) :]
+        u_out = np.array(validation_tracker["u_visible"])[-2 * len(u_target) :]
+        r_out = np.array(validation_tracker["r_visible"])[-2 * len(u_target) :]
 
-            mse_loss_u = compute_loss(u_out, u_target, mse)
-            mse_loss_r = compute_loss(r_out, r_target, mse)
+        mse_loss_u = compute_loss(u_out, u_target, mse)
+        mse_loss_r = compute_loss(r_out, r_target, mse)
 
-            validation_loss_r.append(mse_loss_r)
-            validation_loss_u.append(mse_loss_u)
+        neptune_run["validation_loss_r"].append(mse_loss_r)
 
-        else:
-            print("Last epoch, not tracking validation.")
+        validation_loss_r.append(mse_loss_r)
+        validation_loss_u.append(mse_loss_u)
 
         print(f"Epoch {epoch} -  MSE u: {mse_loss_u}")  # noqa
         print(f"Epoch {epoch} -  MSE r: {mse_loss_r}")  # noqa
 
-    network.save(path / "network.pkl")
+    network.save(artifact_path / "network.pkl")
 
     # replay
     replay_loss_u = []
@@ -134,6 +143,8 @@ def main(path):
         mse_loss_u = compute_loss(u_out, u_target, mse)
         mse_loss_r = compute_loss(r_out, r_target, mse)
 
+        neptune_run["replay_loss_r"].append(mse_loss_r)
+
         replay_loss_r.append(mse_loss_r)
         replay_loss_u.append(mse_loss_u)
 
@@ -146,12 +157,6 @@ def main(path):
     replay_tracker.store("mse_loss_r", replay_loss_r)
     replay_tracker.store("mse_loss_u", replay_loss_u)
 
-    train_tracker.save(path / "train_tracker.pkl")
-    replay_tracker.save(path / "replay_tracker.pkl")
-    validation_tracker.save(path / "validation_tracker.pkl")
-
-
-if __name__ == "__main__":
-    path = Path(__file__).parent.resolve()
-    main(path)
-    print("main() runs through.")
+    train_tracker.save(artifact_path / "train_tracker.pkl")
+    replay_tracker.save(artifact_path / "replay_tracker.pkl")
+    validation_tracker.save(artifact_path / "validation_tracker.pkl")

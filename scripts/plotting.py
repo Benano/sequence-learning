@@ -182,16 +182,64 @@ def plot_losses(replay_loss, val_loss, training_cycles):
 
     return fig
 
+def plot_principal_components(u_latent, target):
 
-if __name__ == "__main__":
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.decomposition import PCA
+
+    data = u_latent.T  # Assuming u_latent is your data for PCA
+
+    # Standardize
+    data_scaled = StandardScaler().fit_transform(data)
+
+    # PCA
+    pca = PCA(n_components=10)
+    data_pca = pca.fit_transform(data_scaled)
+
+    ts_pca = pca.transform(data_scaled)
+    n_steps = ts_pca.shape[0]
+    indices = np.arange(n_steps)
+
+    fig = plt.figure(figsize=(8, 6))
+    ax = fig.add_subplot(111, projection='3d')
+
+    pattern = np.argmax(target, axis=1)
+    # concatenate target once
+    pattern = np.tile(pattern, (1, 2))
+
+    # Use a colormap, e.g., 'viridis' or 'jet'
+    # scatter = ax.scatter(ts_pca[:, 0], ts_pca[:, 1], ts_pca[:, 2],
+    #                      c=pattern, cmap='Accent', marker='o', s=2)
+    scatter = ax.scatter(ts_pca[:, 0], ts_pca[:, 1], ts_pca[:, 2],
+                         c=indices, cmap='jet', marker='o', s=2)
+
+
+    # Add colorbar to show the mapping
+    fig.colorbar(scatter, ax=ax, label='Index')
+
+    ax.set_xlabel('PC1')
+    ax.set_ylabel('PC2')
+    ax.set_zlabel('PC3')
+
+    return fig
+
+def save_fig(fig, name, path, neptune_run, dpi=300):
+    fig.savefig(path / name, dpi=dpi)
+    if neptune_run:
+        neptune_run[f"figures/{name}"].upload(fig)
+    plt.close(fig)
+    print(f"Saved figure {name} to {path}")
+
+def main(full_config, run_path, artifact_path, figure_path, neptune_run):
+
     from elise.config import FullConfig
     from elise.tracker import Tracker
 
-    train = Tracker.load("train_tracker.pkl")
-    val = Tracker.load("validation_tracker.pkl")
-    replay = Tracker.load("replay_tracker.pkl")
+    train = Tracker.load(artifact_path / "train_tracker.pkl")
+    val = Tracker.load(artifact_path / "validation_tracker.pkl")
+    replay = Tracker.load(artifact_path / "replay_tracker.pkl")
 
-    full_config = FullConfig("config.toml")
+    full_config = FullConfig(run_path / "config.toml")
     sim_params = full_config.simulation_params
     track_params = full_config.tracking_params
 
@@ -222,7 +270,8 @@ if __name__ == "__main__":
     fig = plot_activity_target_match(
         train_output, val_output, replay_output, train_target, start_time, step
     )
-    plt.savefig("figs/u_activity.png", dpi=dpi)
+    save_fig(fig, "activity_match.png", figure_path, neptune_run, dpi)
+
 
     first_replay = 2 * int(pattern_duration / dt / sim_step)
     train_output = train["r_visible"][-last_train:].T
@@ -231,7 +280,11 @@ if __name__ == "__main__":
     train_target = val["r_target"][0].T
     hidden_activity = train["r_latent"][-last_train:].T
 
-    dpi = 300
+    # PCA
+    latent_activity = replay["r_latent"][-2 * last_train:].T
+    fig = plot_principal_components(latent_activity, target=train_target.T)
+    save_fig(fig, "PCA.png", figure_path, neptune_run)
+
 
     start_time = sim_params.pattern_duration * \
     (sim_params.training_cycles -1) * sim_params.training_epochs
@@ -239,23 +292,24 @@ if __name__ == "__main__":
     fig = plot_activity_target_match(
         train_output, val_output, replay_output, train_target, start_time, step
     )
-    plt.savefig("figs/activity.png", dpi=dpi)
+    save_fig(fig, "activity_match.png", figure_path, neptune_run, dpi)
 
     replay_output = replay["r_visible"][:first_replay].T
     epoch_len = int(pattern_duration / dt / sim_step)
-    plot_activity_match(replay_output, epoch_len, train_target)
-    plt.savefig("figs/replay_match.png", dpi=dpi)
+    fig = plot_activity_match(replay_output, epoch_len, train_target)
+    save_fig(fig, "activity_match_replay.png", figure_path, neptune_run, dpi)
 
     replay_loss = replay["mse_loss_r"].T
     val_loss = val["mse_loss_r"].T
 
     fig = plot_losses(replay_loss, val_loss, training_cycles=sim_params.training_cycles)
-    plt.savefig("figs/mse_loss.png", dpi=dpi)
+    save_fig(fig, "losses.png", figure_path, neptune_run, dpi)
 
     dpi = 100
     gif = False
     if gif:
         ani = plot_activity_in_time(train_output, replay_output, dt)
-        plt.show()
         writer = PillowWriter(fps=30)
         ani.save("figs/activity.gif", writer)
+
+
