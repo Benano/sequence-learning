@@ -4,12 +4,15 @@ import tomllib as toml
 from dataclasses import dataclass, field, fields
 from typing import Any, Dict, Tuple
 
+@dataclass(slots=True)
+class ExperimentConfig:
+    seed: int = 69
+    pattern: str = "non-markov"
 
 @dataclass(slots=True)
 class NetworkConfig:
     num_lat: int = 50
     num_vis: int = 13
-
 
 @dataclass(slots=True)
 class WeightConfig:
@@ -32,7 +35,6 @@ class WeightConfig:
 
 @dataclass(slots=True)
 class SimulationConfig:
-    input: str = "test"
     dt: float = 0.01
     pattern_dt: float = 0.25
     pattern_duration: float = 100.0
@@ -104,7 +106,9 @@ class Config:
 class FullConfig:
     def __init__(self, config_file: str):
         config = Config(config_file)
-        self.seed: int = config.get_section("").get("seed", 69)
+        self.experiment_params = self._create_config(
+            ExperimentConfig, config.get_section("experiment_params")
+        )
         self.network_params = self._create_config(
             NetworkConfig, config.get_section("network_params")
         )
