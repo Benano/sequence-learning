@@ -313,3 +313,22 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
         ani.save("figs/activity.gif", writer)
 
 
+if __name__ == "__main__":
+    import argparse
+    from pathlib import Path
+    from elise.config import FullConfig
+
+    path = Path(__file__).parent.resolve()
+    artifact_path = path / "artifacts"
+    figure_path = path / "figures"
+    neptune_run = None
+    config_path = path / "config.toml"
+    full_config = FullConfig(config_path)
+
+    main(
+        full_config,
+        path,
+        artifact_path,
+        figure_path,
+        neptune_run,
+    )
