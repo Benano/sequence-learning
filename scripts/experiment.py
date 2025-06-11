@@ -118,7 +118,8 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
         mse_loss_u = compute_loss(u_out, u_target, mse)
         mse_loss_r = compute_loss(r_out, r_target, mse)
 
-        neptune_run["validation_loss_r"].append(mse_loss_r)
+        if neptune_run:
+            neptune_run["validation_loss_r"].append(mse_loss_r)
 
         validation_loss_r.append(mse_loss_r)
         validation_loss_u.append(mse_loss_u)
@@ -143,7 +144,8 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
         mse_loss_u = compute_loss(u_out, u_target, mse)
         mse_loss_r = compute_loss(r_out, r_target, mse)
 
-        neptune_run["replay_loss_r"].append(mse_loss_r)
+        if neptune_run:
+            neptune_run["replay_loss_r"].append(mse_loss_r)
 
         replay_loss_r.append(mse_loss_r)
         replay_loss_u.append(mse_loss_u)
@@ -160,3 +162,23 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
     train_tracker.save(artifact_path / "train_tracker.pkl")
     replay_tracker.save(artifact_path / "replay_tracker.pkl")
     validation_tracker.save(artifact_path / "validation_tracker.pkl")
+
+
+if __name__ == "__main__":
+    from pathlib import Path
+    from elise.config import FullConfig
+
+    path = Path(__file__).parent.resolve()
+    artifact_path = path / "artifacts"
+    figure_path = path / "figures"
+    neptune_run = None
+    config_path = path / "config.toml"
+    full_config = FullConfig(config_path)
+
+    main(
+        full_config,
+        run_path=path,
+        artifact_path=artifact_path,
+        pattern_path=path / "patterns",
+        neptune_run=neptune_run
+    )
