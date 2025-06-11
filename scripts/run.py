@@ -22,53 +22,49 @@ def ensure_runs_dir(runs_dir="runs"):
     runs_path.mkdir(exist_ok=True)
     return runs_path
 
-def create_run_folder(config_path, runs_dir="runs"):
+def create_run_folder(config_path, pattern_name, runs_dir="runs"):
     """Create a unique run folder based on the config hash and today's date."""
 
     config_hash = hash_file(config_path)
     today = get_today_date()
-    run_folder_name = f"{today}_{config_hash[:8]}"  # Short hash for readability
-    run_folder = ensure_runs_dir(runs_dir) / run_folder_name
-    run_folder.mkdir(exist_ok=True)
+    run_folder_name = f"{today}_{pattern_name}_{config_hash[:8]}"  # Short hash for readability
+    run_path = ensure_runs_dir(runs_dir) / run_folder_name
+    run_path.mkdir(exist_ok=True)
 
-    artifact_folder = run_folder / "artifacts"
-    artifact_folder.mkdir(exist_ok=True)
-
-    figures_folder = run_folder / "figures"
-    figures_folder.mkdir(exist_ok=True)
-
-    pattern_folder = run_folder / "patterns"
-    pattern_folder.mkdir(exist_ok=True)
-
-    shutil.copy(config_path, run_folder / config_path.name)
-
-    return run_folder, artifact_folder, figures_folder, pattern_folder
+    return run_path
 
 def main():
-    # Path to your config.toml (relative to the run script)
-    #
-    config_path = Path("config.toml").resolve()
-    runs_dir = "runs"
-    run_path, artifact_path, figure_path, pattern_path = create_run_folder(config_path, runs_dir)
-    print(f"Created and using run folder: {run_path}")
-
     from elise.config import FullConfig
+
+    config_path = Path("config.toml").resolve()
     full_config = FullConfig(config_path)
     experiment_params = full_config.experiment_params
 
-    pattern_folder = Path("patterns").resolve()
-    pattern = pattern_folder / (experiment_params.pattern + ".txt")
+    runs_dir = "runs"
+    pattern_name = experiment_params.pattern
+    run_path = create_run_folder(config_path, pattern_name, runs_dir)
 
-    # Creating Run folder
+    # Create directories for artifacts, figures, and patterns
+    artifact_path = run_path / "artifacts"
+    figure_path = run_path / "figures"
+    pattern_path = run_path / "patterns"
+    artifact_path.mkdir(exist_ok=True)
+    figure_path.mkdir(exist_ok=True)
+    pattern_path.mkdir(exist_ok=True)
+
+    # Copy necessary files to the run directory
     shutil.copy('experiment.py', run_path)
     shutil.copy('plotting.py', run_path)
+    shutil.copy('config.toml', run_path)
+    pattern_folder = Path("patterns").resolve()
+    pattern = pattern_folder / (experiment_params.pattern + ".txt")
     shutil.copy(pattern, pattern_path)
-
-    run_id = experiment_params.pattern + "_" + run_path.name
 
     neptune_run = neptune.init_run(
         project="elise-neurotma/ELiSe",
-        custom_run_id=run_id)
+        custom_run_id=run_path.name[-16:],
+        name = f"{experiment_params.pattern}_{experiment_params.seed}",
+    )
 
     # Import your main function (assuming it's in the same directory as run.py)
     from experiment import main as experiment_main
@@ -76,6 +72,7 @@ def main():
 
     from plotting import main as plotting_main
     plotting_main(full_config, run_path, artifact_path, figure_path, neptune_run)
+
 
 if __name__ == "__main__":
     main()
