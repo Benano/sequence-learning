@@ -6,6 +6,8 @@ from datetime import datetime
 import shutil
 import neptune
 from elise.config import FullConfig
+import tomllib as toml
+from neptune.utils import stringify_unsupported
 
 def hash_file(filepath):
     """Generate a SHA-256 hash of a file."""
@@ -32,6 +34,12 @@ def create_run_folder(config_path, pattern_name, runs_dir="runs"):
     run_path.mkdir(exist_ok=True)
 
     return run_path
+
+def track_config(config, neptune_run):
+    """Track the configuration in Neptune."""
+    for section, params in config.items():
+        for key, value in params.items():
+            neptune_run[f"config/{section}/{key}"] = value
 
 def main():
     from elise.config import FullConfig
@@ -63,8 +71,21 @@ def main():
     neptune_run = neptune.init_run(
         project="elise-neurotma/ELiSe",
         custom_run_id=run_path.name[-16:],
-        name = f"{experiment_params.pattern}_{experiment_params.seed}",
+        name = run_path.name,
+        tags=[experiment_params.pattern],
     )
+
+    # Save config file to Neptune
+    neptune_run["parameters/config"].upload("config.toml")
+
+    with open(config_path, "rb") as f:
+        raw_config = toml.load(f)
+    if neptune_run:
+        raw_config = stringify_unsupported(raw_config)
+        # Log each parameter
+        for section, params in raw_config.items():
+            for key, value in params.items():
+                neptune_run[f"parameters/{section}/{key}"] = value
 
     # Import your main function (assuming it's in the same directory as run.py)
     from experiment import main as experiment_main
