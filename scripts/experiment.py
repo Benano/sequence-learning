@@ -9,7 +9,7 @@ from tqdm import tqdm
 import neptune
 
 from elise.config import FullConfig
-from elise.data import Dataloader, MultiHotPattern
+from elise.data import Dataloader, MultiHotPattern, Pattern
 from elise.model import Network, eq_phi  # noqa
 from elise.optimizer import SimpleUpdater
 from elise.rate_buffer import Buffer
@@ -18,19 +18,42 @@ from elise.tracker import Tracker
 from elise.weights import DendriticWeights, SomaticWeights
 import ast
 
-# Pattern & Dataloader
-def get_pattern_from_txt(filename):
-    with open(filename, "r") as file:
-        content = file.read().strip()
-
-    result = ast.literal_eval(f"[{content}]")
-
-    return result
-
 def compute_loss(output, target, loss_function):
     metric = window_slider(output, target, loss_function)
     loss = np.min(metric)
     return loss
+
+
+def load_multi_hot_pattern(filename):
+    with open(filename, "r") as file:
+        content = file.read().strip()
+
+    pat = ast.literal_eval(f"[{content}]")
+    return pat
+
+def load_one_hot_pattern(pattern_file):
+    pat = np.loadtxt(pattern_file, delimiter=" ").astype(int).T
+    pat = pat[:,pat.any(axis=0)]
+
+    return pat
+
+def load_pattern_flexible(pattern_file):
+    """
+    Try to load a pattern file as multi-hot; if that fails, load as one-hot.
+    Returns a numpy array.
+    """
+    try:
+        # Try multi-hot
+        pat = load_multi_hot_pattern(pattern_file)
+        pat_type = "multi-hot"
+
+    except (ValueError, SyntaxError):
+        # Try one-hot
+        pat = load_one_hot_pattern(pattern_file)
+        pat_type = "one-hot"
+
+    return pat, pat_type
+
 
 def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
 
@@ -42,15 +65,25 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
     track_params = full_config.tracking_params
 
     pattern_file = pattern_path / f"{experiment_params.pattern}.txt"
-    raw_pattern = get_pattern_from_txt(pattern_file)
+    pattern, pattern_type = load_pattern_flexible(pattern_file)
 
-    pattern = MultiHotPattern(
-        pattern=raw_pattern,
-        duration=simulation_params.pattern_duration,
-        width=network_params.num_vis,
-    )
+    if len(pattern) > 300:
+        pattern = pattern[:,:250]
+
+    if pattern_type == "multi-hot":
+        pattern = MultiHotPattern(
+            pattern=pattern,
+            duration=simulation_params.pattern_duration,
+            width=network_params.num_vis)
+
+    elif pattern_type == "one-hot":
+        pattern = Pattern(
+            pattern=pattern,
+            duration=simulation_params.pattern_duration)
+
     def to_biounits(x):
         return neuron_params.E_l + x * 20.0
+
     loader = Dataloader(pattern, pre_transforms=[to_biounits])
 
     # Network
@@ -103,8 +136,8 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
                 train_tracker.track(t)
 
         # Add learning rate decay
-        network.optimizer_vis.eta *= 0.98
-        network.optimizer_lat.eta *= 0.98
+        network.optimizer_vis.eta *= 0.95
+        network.optimizer_lat.eta *= 0.95
 
         # Validation
         # if epoch != simulation_params.training_epochs - 1:
