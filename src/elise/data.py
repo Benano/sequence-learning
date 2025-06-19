@@ -3,6 +3,7 @@
 # /usr/bin/env python3
 
 
+import pickle
 from abc import ABC, abstractmethod
 from typing import Any, Callable, List, Optional, Tuple, Union
 
@@ -322,6 +323,29 @@ class BaseDataloader(ABC):
     def get_full_pattern(self, dt) -> npt.NDArray:
         pass
 
+    def save(self, path: str) -> None:
+        """
+        Save the dataloader.
+
+        :param path: File path to save the loader.
+        :type path: str
+        """
+        with open(path, "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def load(cls, path: str):
+        """
+        Load a tracker object from a file.
+
+        :param path: File path to load the loader from.
+        :type path: str
+        :return: The loaded loader object.
+        :rtype: Tracker
+        """
+        with open(path, "rb") as f:
+            return pickle.load(f)
+
 
 class DiscreteDataloader(BaseDataloader):
     """
@@ -567,5 +591,5 @@ def Dataloader(
         )
     else:
         raise TypeError(
-            f"pattern is {type(pattern)}, but should inherit from BasePattern or BaseContinuousPatter."  # noqa
+            f"pattern should inherit from BasePattern or BaseContinuousPatter."  # noqa
         )
