@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "elise"  # TODO change name, and also the folder name in src/seqlearn
-version = "0.2.0"
+version = "0.3.0"
 description = "Implementation of the sequence learning model by Kriener et al., 2024"
 readme = "README.md"
 authors =[

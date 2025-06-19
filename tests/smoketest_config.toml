@@ -1,0 +1,68 @@
+[network_params]
+num_lat = 30
+num_vis = 7
+
+[weight_params]
+w_som_seed = 42
+w_den_seed = 99
+d_som_seed = 42
+d_den_seed = 99
+p = 0.2
+q = 0.15
+p0 = 0.04
+den_spars = 0.3
+W_vis_vis = [0.0, 0.1]
+W_vis_lat = [0.0, 0.1]
+W_lat_lat = [0.0, 0.1]
+W_lat_vis = [0.0, 0.1]
+d_den = [5, 15]
+d_som = [5, 15]
+d_int = 25
+
+[simulation_params]
+dt = 0.1
+training_epochs = 5
+pattern_duration = 100.0
+training_cycles = 10
+validation_cycles = 2
+replay_cycles = 5
+eta_out = 10e-4
+eta_lat = 10e-2
+
+[neuron_params]
+C_v = 1.0
+C_u = 1.0
+E_l = -70.0
+E_exc = 0.0
+E_inh = -75.0
+g_l = 0.1
+g_den = 2.0
+g_exc_0 = 0.3
+g_inh_0 = 6.0
+a   = 0.3
+b   = -58.0
+lam = 0.7
+
+[tracking_params]
+sim_step = 1
+
+vars_train = [
+  ["v", "all" ],
+  ["u", "visible" ],
+  ["r", "latent" ]
+  ]
+
+# vars_epoch = [
+#   ["dendritic_weights", "all" ],
+#   ]
+
+vars_val = [
+  ["u", "visible"],
+]
+
+vars_replay = [
+  ["v", "all" ],
+  ["u", "visible" ],
+  ["r", "latent" ],
+  ["r", "visible"]
+  ]

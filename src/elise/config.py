@@ -69,6 +69,7 @@ class TrackingConfig:
     vars_train: list = field(default_factory=list)
     vars_epoch: list = field(default_factory=list)
     vars_replay: list = field(default_factory=list)
+    vars_val: list = field(default_factory=list)
 
 
 class Config:
@@ -124,5 +125,5 @@ class FullConfig:
         kwargs = {}
         for f in fields(config_class):
             if f.name in config_dict:
-                kwargs[f.name] = config_dict[field.name]
+                kwargs[f.name] = config_dict[f.name]
         return config_class(**kwargs)

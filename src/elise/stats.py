@@ -5,10 +5,10 @@ Functions for evaluating the model performance.
 """
 from typing import Callable
 
+import numba
 import numpy as np
 import numpy.typing as npt
 from numpy.lib.stride_tricks import sliding_window_view
-from scipy.stats import pearsonr
 
 
 def window_slider(
@@ -30,23 +30,7 @@ def window_slider(
     return np.array([func(chunk, target) for chunk in windows])
 
 
-def pearson_coef_(data: npt.NDArray, target: npt.NDArray):
-    """
-    Calculate the mean Pearson correlation coefficient between data and target.
-
-    THIS VERSION REQUIRES SCIPY VERSION 1.14!
-
-    :param data: Input data array
-    :type data: npt.NDArray
-    :param target: Target array
-    :type target: npt.NDArray
-    :return: Mean Pearson correlation coefficient
-    :rtype: float
-    """
-    p_coefs = pearsonr(data, target, axis=0).statistic
-    return np.mean(p_coefs)
-
-
+@numba.njit()
 def pearson_coef(data: npt.NDArray, target: npt.NDArray):
     """
     Calculate the mean Pearson correlation coefficient between data and target.
@@ -58,13 +42,14 @@ def pearson_coef(data: npt.NDArray, target: npt.NDArray):
     :return: Mean Pearson correlation coefficient
     :rtype: float
     """
-    p_coefs = []
-    for d, t in zip(
-        np.nditer(data, order="F", flags=["external_loop"]),
-        np.nditer(target, order="F", flags=["external_loop"]),
-    ):
-        p_coefs.append(pearsonr(d, t).statistic)
-    return np.mean(p_coefs)
+    t, n = data.shape
+    # apperently, transposing the array beforehand speeds up the
+    dataT = data.T
+    targetT = target.T
+    mean_coef = 0.0
+    for i in range(n):
+        mean_coef += np.corrcoef(dataT[i], targetT[i])[0, 1]
+    return mean_coef / n
 
 
 def mse(data: npt.NDArray, target: npt.NDArray):
