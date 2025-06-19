@@ -72,6 +72,9 @@ class Network:
         """
         Reset the activity of the network to the resting state.
         """
+        self.rate_buffer = Buffer(
+            self.num_all, self._compute_buffer_depth(self.dt), self.r_rest
+        )
         self.v.fill(self.neuron_params.E_l)
         self.u.fill(self.neuron_params.E_l)
         self.r_bar.fill(self.r_rest)
