@@ -7,7 +7,8 @@ from typing import Any, Dict, Tuple
 @dataclass(slots=True)
 class ExperimentConfig:
     seed: int = 69
-    pattern: str = "non-markov"
+    patterns: list = field(default_factory=list)
+    method: str = "stack"
 
 @dataclass(slots=True)
 class NetworkConfig:

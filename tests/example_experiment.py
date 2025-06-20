@@ -76,9 +76,9 @@ def main(path, artifacts_path):
     )
 
     # Sim Trackers
-    train_tracker = Tracker(network, track_params.vars_train, track_params.sim_step)
-    validation_tracker = Tracker(network, track_params.vars_val, track_params.sim_step)
-    replay_tracker = Tracker(network, track_params.vars_replay, track_params.sim_step)
+    train_tracker = Tracker(track_params.vars_train, track_params.sim_step)
+    validation_tracker = Tracker(track_params.vars_val, track_params.sim_step)
+    replay_tracker = Tracker(track_params.vars_replay, track_params.sim_step)
 
     for epoch in tqdm(range(simulation_params.training_epochs)):
         for t in np.arange(0, training_duration, simulation_params.dt):
@@ -86,13 +86,13 @@ def main(path, artifacts_path):
 
             # Only record in last epoch
             if epoch == simulation_params.training_epochs - 1:
-                train_tracker.track(t)
+                train_tracker.track(network, t)
 
         # Validation
         if epoch != simulation_params.training_epochs - 1:
             for t in np.arange(0, validation_duration, simulation_params.dt):
                 network(u_inp=None)
-                validation_tracker.track(t)
+                validation_tracker.track(network, t)
 
             u_out = np.array(validation_tracker["u_visible"])
             mse_loss = np.min(window_slider(u_out, u_target, mse))
@@ -107,7 +107,7 @@ def main(path, artifacts_path):
     # replay
     for t in np.arange(0, replay_duration, simulation_params.dt):
         network(u_inp=None)
-        replay_tracker.track(t)
+        replay_tracker.track(network, t)
 
     u_out = np.array(replay_tracker["u_visible"])
     replay_losses = window_slider(u_out, u_target, mse)

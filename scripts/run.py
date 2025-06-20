@@ -47,9 +47,9 @@ def main():
     config_path = Path("config.toml").resolve()
     full_config = FullConfig(config_path)
     experiment_params = full_config.experiment_params
+    pattern_name = '_'.join(experiment_params.patterns)
 
     runs_dir = "runs"
-    pattern_name = experiment_params.pattern
     run_path = create_run_folder(config_path, pattern_name, runs_dir)
 
     # Create directories for artifacts, figures, and patterns
@@ -61,19 +61,28 @@ def main():
     pattern_path.mkdir(exist_ok=True)
 
     # Copy necessary files to the run directory
-    shutil.copy('experiment.py', run_path)
+    shutil.copy('train.py', run_path)
     shutil.copy('plotting.py', run_path)
+    shutil.copy('experiment.py', run_path)
     shutil.copy('config.toml', run_path)
     pattern_folder = Path("patterns").resolve()
-    pattern = pattern_folder / (experiment_params.pattern + ".txt")
-    shutil.copy(pattern, pattern_path)
+
+    for pattern in experiment_params.patterns:
+        p_file = pattern_folder / (pattern + ".txt")
+        shutil.copy(p_file, pattern_path)
 
     neptune_run = neptune.init_run(
         project="elise-neurotma/ELiSe",
         custom_run_id=run_path.name[-16:],
         name = run_path.name,
-        tags=[experiment_params.pattern],
+        tags=[pattern_name],
     )
+
+    run_id = neptune_run["sys/id"].fetch()
+    print(f"Run ID: {run_id}")  # Print the run ID for reference
+    # Save run ID to a file
+    with open(run_path / "run_id.txt", "w") as f:
+        f.write(run_id)
 
     # Save config file to Neptune
     neptune_run["parameters/config"].upload("config.toml")
@@ -88,12 +97,14 @@ def main():
                 neptune_run[f"parameters/{section}/{key}"] = value
 
     # Import your main function (assuming it's in the same directory as run.py)
+    from train import main as train_main
+    train_main(full_config, run_path, artifact_path, pattern_path, neptune_run)
+
     from experiment import main as experiment_main
     experiment_main(full_config, run_path, artifact_path, pattern_path, neptune_run)
 
     from plotting import main as plotting_main
     plotting_main(full_config, run_path, artifact_path, figure_path, neptune_run)
-
 
 if __name__ == "__main__":
     main()

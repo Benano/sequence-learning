@@ -312,18 +312,27 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
         writer = PillowWriter(fps=30)
         ani.save("figs/activity.gif", writer)
 
-
 if __name__ == "__main__":
     import argparse
     from pathlib import Path
     from elise.config import FullConfig
+    import neptune
 
     path = Path(__file__).parent.resolve()
     artifact_path = path / "artifacts"
     figure_path = path / "figures"
-    neptune_run = None
     config_path = path / "config.toml"
     full_config = FullConfig(config_path)
+
+    with open("run_id.txt", "r") as f:
+        run_id = f.read().strip()
+
+    neptune_run = neptune.init_run(
+        project="elise-neurotma/ELiSe",
+        custom_run_id=run_id,
+        name=path.name,
+        tags=full_config.experiment_params.patterns,
+    )
 
     main(
         full_config,

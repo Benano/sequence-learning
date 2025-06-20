@@ -64,3 +64,9 @@ def mse(data: npt.NDArray, target: npt.NDArray):
     :rtype: float
     """
     return np.mean((data - target) ** 2)
+
+
+def compute_loss(output, target, loss_function):
+    metric = window_slider(output, target, loss_function)
+    loss = np.min(metric)
+    return loss
