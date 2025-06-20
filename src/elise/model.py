@@ -68,6 +68,21 @@ class Network:
 
         self.dt = None
 
+    def reset_activity(self):
+        """
+        Reset the activity of the network to the resting state.
+        """
+        self.rate_buffer = Buffer(
+            self.num_all, self._compute_buffer_depth(self.dt), self.r_rest
+        )
+        self.v.fill(self.neuron_params.E_l)
+        self.u.fill(self.neuron_params.E_l)
+        self.r_bar.fill(self.r_rest)
+        self.r.fill(self.r_rest)
+        self.r_den.fill(self.r_rest)
+        self.r_exc.fill(self.r_rest)
+        self.r_inh.fill(self.r_rest)
+
     def get_val(self, attribute_name, view="all"):  #
         """
         Retrieve the specified attribute for the given neuron type.
