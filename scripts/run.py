@@ -28,13 +28,13 @@ def ensure_runs_dir(runs_dir="runs"):
     return runs_path
 
 
-def create_run_folder(config_path, pattern_name, runs_dir="runs"):
+def create_run_folder(config_path, pattern_name, seed, runs_dir="runs"):
     """Create a unique run folder based on the config hash and today's date."""
 
     config_hash = hash_file(config_path)
     today = get_today_date()
     run_folder_name = (
-        f"{today}_{pattern_name}_{config_hash[:8]}"  # Short hash for readability
+        f"{today}_{pattern_name}_{seed}_{config_hash[:8]}"  # Short hash for readability
     )
     run_path = ensure_runs_dir(runs_dir) / run_folder_name
     run_path.mkdir(exist_ok=True)
@@ -62,7 +62,7 @@ def main(seed):
     experiment_params.seed = seed
 
     runs_dir = "runs"
-    run_path = create_run_folder(config_path, pattern_name, runs_dir)
+    run_path = create_run_folder(config_path, pattern_name, seed, runs_dir)
 
     # Create directories for artifacts, figures, and patterns
     artifact_path = run_path / "artifacts"
