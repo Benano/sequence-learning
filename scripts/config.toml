@@ -1,17 +1,13 @@
 [experiment_params]
-seed = 69
-patterns = ['Prelude1', 'Prelude2']
-method = 'stack'
+seed = 42
+patterns = ['fuer_elise_4']
+group_tag = 'multiple_durations_150'
 
 [network_params]
-num_lat = 150
+num_lat = 100
 num_vis = 13
 
 [weight_params]
-w_som_seed = 42
-w_den_seed = 99
-d_som_seed = 42
-d_den_seed = 99
 p = 0.2
 q = 0.15
 p0 = 0.04
@@ -26,11 +22,11 @@ d_int = 25
 
 [simulation_params]
 dt = 0.1
-training_epochs = 10
+training_epochs = 20
 replay_epochs = 10
-pattern_duration = 100.0
+pattern_duration = 150.0
 pattern_dt = 0.25
-training_cycles = 10
+training_cycles = 25
 validation_cycles = 2
 replay_cycles = 2
 validation_interval = 20

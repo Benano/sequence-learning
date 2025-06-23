@@ -7,11 +7,10 @@ from elise.config import NetworkConfig, WeightConfig
 @pytest.fixture
 def default_weight_config():
     return WeightConfig(
-        w_som_seed=42,
         p=0.5,
         q=0.3,
         p0=0.1,
-        w_den_seed=42,
+        weight_seed=42,
         W_vis_vis=[0.0, 0.5],
         W_vis_lat=[0.0, 0.5],
         W_lat_lat=[0.0, 0.5],

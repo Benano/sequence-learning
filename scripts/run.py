@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
 
 import hashlib
-from pathlib import Path
-from datetime import datetime
 import shutil
-import neptune
-from elise.config import FullConfig
 import tomllib as toml
+from datetime import datetime
+from pathlib import Path
+
+import neptune
 from neptune.utils import stringify_unsupported
+
 
 def hash_file(filepath):
     """Generate a SHA-256 hash of a file."""
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         return hashlib.sha256(f.read()).hexdigest()
+
 
 def get_today_date():
     """Return today's date as a string (YYYY-MM-DD)."""
     return datetime.now().strftime("%Y-%m-%d")
+
 
 def ensure_runs_dir(runs_dir="runs"):
     """Ensure the runs directory exists."""
@@ -24,16 +27,20 @@ def ensure_runs_dir(runs_dir="runs"):
     runs_path.mkdir(exist_ok=True)
     return runs_path
 
+
 def create_run_folder(config_path, pattern_name, runs_dir="runs"):
     """Create a unique run folder based on the config hash and today's date."""
 
     config_hash = hash_file(config_path)
     today = get_today_date()
-    run_folder_name = f"{today}_{pattern_name}_{config_hash[:8]}"  # Short hash for readability
+    run_folder_name = (
+        f"{today}_{pattern_name}_{config_hash[:8]}"  # Short hash for readability
+    )
     run_path = ensure_runs_dir(runs_dir) / run_folder_name
     run_path.mkdir(exist_ok=True)
 
     return run_path
+
 
 def track_config(config, neptune_run):
     """Track the configuration in Neptune."""
@@ -41,13 +48,18 @@ def track_config(config, neptune_run):
         for key, value in params.items():
             neptune_run[f"config/{section}/{key}"] = value
 
-def main():
+
+def main(seed):
     from elise.config import FullConfig
 
     config_path = Path("config.toml").resolve()
     full_config = FullConfig(config_path)
     experiment_params = full_config.experiment_params
-    pattern_name = '_'.join(experiment_params.patterns)
+    pattern_name = "_".join(experiment_params.patterns)
+
+    # Set the seed in the config
+    rng = np.random.default_rng(seed)
+    experiment_params.seed = seed
 
     runs_dir = "runs"
     run_path = create_run_folder(config_path, pattern_name, runs_dir)
@@ -61,10 +73,10 @@ def main():
     pattern_path.mkdir(exist_ok=True)
 
     # Copy necessary files to the run directory
-    shutil.copy('train.py', run_path)
-    shutil.copy('plotting.py', run_path)
-    shutil.copy('experiment.py', run_path)
-    shutil.copy('config.toml', run_path)
+    shutil.copy("train.py", run_path)
+    shutil.copy("plotting.py", run_path)
+    shutil.copy("experiment.py", run_path)
+    shutil.copy("config.toml", run_path)
     pattern_folder = Path("patterns").resolve()
 
     for pattern in experiment_params.patterns:
@@ -74,9 +86,10 @@ def main():
     neptune_run = neptune.init_run(
         project="elise-neurotma/ELiSe",
         custom_run_id=run_path.name[-16:],
-        name = run_path.name,
+        name=run_path.name,
         tags=[pattern_name],
     )
+    neptune_run["sys/group_tags"].add(experiment_params.group_tag)
 
     run_id = neptune_run["sys/id"].fetch()
     print(f"Run ID: {run_id}")  # Print the run ID for reference
@@ -98,13 +111,30 @@ def main():
 
     # Import your main function (assuming it's in the same directory as run.py)
     from train import main as train_main
-    train_main(full_config, run_path, artifact_path, pattern_path, neptune_run)
+
+    train_main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng)
 
     from experiment import main as experiment_main
+
     experiment_main(full_config, run_path, artifact_path, pattern_path, neptune_run)
 
     from plotting import main as plotting_main
+
     plotting_main(full_config, run_path, artifact_path, figure_path, neptune_run)
 
+
 if __name__ == "__main__":
-    main()
+    # Get seed from sys using sys.argv
+    import argparse
+
+    import numpy as np
+
+    parser = argparse.ArgumentParser(
+        description="Run ELiSe experiment with a specified random seed."
+    )
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed for NumPy RNG"
+    )
+    args = parser.parse_args()
+
+    main(args.seed)

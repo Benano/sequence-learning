@@ -4,23 +4,22 @@ import tomllib as toml
 from dataclasses import dataclass, field, fields
 from typing import Any, Dict, Tuple
 
+
 @dataclass(slots=True)
 class ExperimentConfig:
     seed: int = 69
     patterns: list = field(default_factory=list)
-    method: str = "stack"
+    group_tag: str = "default_group"
+
 
 @dataclass(slots=True)
 class NetworkConfig:
     num_lat: int = 50
     num_vis: int = 13
 
+
 @dataclass(slots=True)
 class WeightConfig:
-    w_som_seed: int = 42
-    w_den_seed: int = 99
-    d_som_seed: int = 42
-    d_den_seed: int = 99
     p: float = 0.5
     q: float = 0.3
     p0: float = 0.1

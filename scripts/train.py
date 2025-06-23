@@ -1,17 +1,16 @@
-from pathlib import Path
+import ast
+
+import neptune
 import numpy as np
 from tqdm import tqdm
-import neptune
 
-from elise.config import FullConfig
 from elise.data import Dataloader, MultiHotPattern, Pattern
 from elise.model import Network, eq_phi  # noqa
 from elise.optimizer import SimpleUpdater
 from elise.rate_buffer import Buffer
-from elise.stats import mse, compute_loss
+from elise.stats import compute_loss, mse
 from elise.tracker import Tracker
 from elise.weights import DendriticWeights, SomaticWeights
-import ast
 
 
 def load_multi_hot_pattern(filename):
@@ -21,11 +20,13 @@ def load_multi_hot_pattern(filename):
     pat = ast.literal_eval(f"[{content}]")
     return pat
 
+
 def load_one_hot_pattern(pattern_file):
     pat = np.loadtxt(pattern_file, delimiter=" ").astype(int).T
-    pat = pat[:,pat.any(axis=0)]
+    pat = pat[:, pat.any(axis=0)]
 
     return pat
+
 
 def load_pattern_flexible(pattern_file):
     """
@@ -45,8 +46,7 @@ def load_pattern_flexible(pattern_file):
     return pat, pat_type
 
 
-def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
-
+def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     experiment_params = full_config.experiment_params
     neuron_params = full_config.neuron_params
     network_params = full_config.network_params
@@ -76,18 +76,19 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
         full_pattern, pattern_type = load_pattern_flexible(pattern_file)
 
     if len(full_pattern) > 300:
-        full_pattern = full_pattern[:250,:]
+        full_pattern = full_pattern[:250, :]
 
     if pattern_type == "multi-hot":
         pattern = MultiHotPattern(
             pattern=full_pattern,
             duration=simulation_params.pattern_duration,
-            width=network_params.num_vis)
+            width=network_params.num_vis,
+        )
 
     elif pattern_type == "one-hot":
         pattern = Pattern(
-            pattern=full_pattern,
-            duration=simulation_params.pattern_duration)
+            pattern=full_pattern, duration=simulation_params.pattern_duration
+        )
 
     def to_biounits(x):
         return neuron_params.E_l + x * 20.0
@@ -95,10 +96,15 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
     loader = Dataloader(pattern, pre_transforms=[to_biounits])
     loader.save(artifact_path / "dataloader.pkl")
 
+    # Set seed to experiment_params.seed
+    np.random.seed(experiment_params.seed)
+
+    # get for random numbers for the seeds of the weights
+
     # Network
     rate_buffer = Buffer
-    dendritic_weights = DendriticWeights(weight_params)
-    somatic_weights = SomaticWeights(weight_params)
+    dendritic_weights = DendriticWeights(weight_params, rng)
+    somatic_weights = SomaticWeights(weight_params, rng)
     network_params.num_vis = pattern.shape[1]
     network = Network(
         network_params, neuron_params, dendritic_weights, somatic_weights, rate_buffer
@@ -114,7 +120,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
     network.prepare_for_simulation(dt, optimizer_vis, optimizer_lat)
 
     # Every track params sim_step
-    u_target = loader.get_full_pattern(dt)[::track_params.sim_step]
+    u_target = loader.get_full_pattern(dt)[:: track_params.sim_step]
     r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
 
     # Sim params
@@ -134,7 +140,6 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
 
     for epoch in tqdm(range(simulation_params.training_epochs)):
         for t in np.arange(0, training_duration, simulation_params.dt):
-
             network(u_inp=loader(t))
 
             # Only track the last two epochs
@@ -179,6 +184,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
 
 if __name__ == "__main__":
     from pathlib import Path
+
     from elise.config import FullConfig
 
     path = Path(__file__).parent.resolve()
@@ -197,10 +203,12 @@ if __name__ == "__main__":
         tags=full_config.experiment_params.patterns,
     )
 
+    rng = np.random.default_rng(full_config.experiment_params.seed)
+
     main(
         full_config,
         run_path=path,
         artifact_path=artifact_path,
         pattern_path=path / "patterns",
-        neptune_run=neptune_run
+        neptune_run=neptune_run,
     )
