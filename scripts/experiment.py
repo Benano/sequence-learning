@@ -1,33 +1,29 @@
 #!/usr/bin/env python3
 
 import numpy as np
-from elise.model import Network, eq_phi
-from elise.data import DiscreteDataloader
-from elise.tracker import Tracker
-from elise.stats import mse, compute_loss
-from elise.config import FullConfig
 from tqdm import tqdm
+
+from elise.config import FullConfig
+from elise.data import DiscreteDataloader
+from elise.model import Network, eq_phi
+from elise.stats import compute_loss, mse
+from elise.tracker import Tracker
 
 
 def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
-
-    experiment_params = full_config.experiment_params
     neuron_params = full_config.neuron_params
-    network_params = full_config.network_params
     simulation_params = full_config.simulation_params
-    weight_params = full_config.weight_params
     track_params = full_config.tracking_params
 
     # Load network
     network = Network.load(
         artifact_path / "network.pkl",
     )
-    loader = DiscreteDataloader.load(
-        artifact_path / "dataloader.pkl")
+    loader = DiscreteDataloader.load(artifact_path / "dataloader.pkl")
 
     # Every track params sim_step
     dt = network.dt
-    u_target = loader.get_full_pattern(dt)[::track_params.sim_step]
+    u_target = loader.get_full_pattern(dt)[:: track_params.sim_step]
     r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
 
     replay_duration = (
@@ -39,17 +35,18 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
     # replay
     replay_loss_u = []
     replay_loss_r = []
-    network.reset_activity()
 
     # replay
     replay_loss_u = []
     replay_loss_r = []
-    network.reset_activity()
 
     first = 25
-    partial_replay = True
+    partial_replay = False
+    if partial_replay:
+        network.reset_activity()
 
     import copy
+
     for epoch in tqdm(range(simulation_params.replay_epochs)):
         for t in np.arange(0, replay_duration, simulation_params.dt):
             # only the first 32 rows
@@ -82,12 +79,12 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
     replay_tracker.store("mse_loss_r", replay_loss_r)
     replay_tracker.store("mse_loss_u", replay_loss_u)
 
-    replay_tracker.save(artifact_path / "replay_tracker.pkl")
+    return replay_tracker
 
 
 if __name__ == "__main__":
     from pathlib import Path
-    from elise.config import FullConfig
+
     import neptune
 
     path = Path(__file__).parent.resolve()
@@ -111,5 +108,5 @@ if __name__ == "__main__":
         run_path=path,
         artifact_path=artifact_path,
         pattern_path=path / "patterns",
-        neptune_run=neptune_run
+        neptune_run=neptune_run,
     )
