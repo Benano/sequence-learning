@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 import matplotlib.pyplot as plt
 import numpy as np
@@ -76,7 +75,6 @@ def plot_activity_target_match(
 
     # Concatenate train and val output
     full_output = np.concatenate((train_output, val_output, replay_output), axis=1)
-
 
     # Determine overall min and max values
     vmin = min(np.min(full_output), np.min(train_target))
@@ -163,7 +161,7 @@ def plot_activity_match(replay_output, epoch_len, target):
     return fig
 
 
-def plot_losses(replay_loss, val_loss, training_cycles):
+def plot_losses(replay_loss, val_loss, training_cycles, replay_cycles):
     fig, axs = plt.subplots(1, 2, figsize=(8, 4), sharey=True)
 
     # each element in the list comprises one set of training cycles
@@ -173,6 +171,7 @@ def plot_losses(replay_loss, val_loss, training_cycles):
     axs[0].set_xlabel("Training cycles")
 
     axs[1].plot(replay_loss)
+    x = np.linspace(0, len(replay_loss) * replay_cycles, len(val_loss))
     axs[1].set_title("Replay loss")
     axs[1].set_xlabel("Replay cycles")
 
@@ -182,10 +181,10 @@ def plot_losses(replay_loss, val_loss, training_cycles):
 
     return fig
 
-def plot_principal_components(u_latent, target):
 
-    from sklearn.preprocessing import StandardScaler
+def plot_principal_components(u_latent, target):
     from sklearn.decomposition import PCA
+    from sklearn.preprocessing import StandardScaler
 
     data = u_latent.T  # Assuming u_latent is your data for PCA
 
@@ -194,14 +193,14 @@ def plot_principal_components(u_latent, target):
 
     # PCA
     pca = PCA(n_components=10)
-    data_pca = pca.fit_transform(data_scaled)
+    pca.fit_transform(data_scaled)
 
     ts_pca = pca.transform(data_scaled)
     n_steps = ts_pca.shape[0]
     indices = np.arange(n_steps)
 
     fig = plt.figure(figsize=(8, 6))
-    ax = fig.add_subplot(111, projection='3d')
+    ax = fig.add_subplot(111, projection="3d")
 
     pattern = np.argmax(target, axis=1)
     # concatenate target once
@@ -210,18 +209,19 @@ def plot_principal_components(u_latent, target):
     # Use a colormap, e.g., 'viridis' or 'jet'
     # scatter = ax.scatter(ts_pca[:, 0], ts_pca[:, 1], ts_pca[:, 2],
     #                      c=pattern, cmap='Accent', marker='o', s=2)
-    scatter = ax.scatter(ts_pca[:, 0], ts_pca[:, 1], ts_pca[:, 2],
-                         c=indices, cmap='jet', marker='o', s=2)
-
+    scatter = ax.scatter(
+        ts_pca[:, 0], ts_pca[:, 1], ts_pca[:, 2], c=indices, cmap="jet", marker="o", s=2
+    )
 
     # Add colorbar to show the mapping
-    fig.colorbar(scatter, ax=ax, label='Index')
+    fig.colorbar(scatter, ax=ax, label="Index")
 
-    ax.set_xlabel('PC1')
-    ax.set_ylabel('PC2')
-    ax.set_zlabel('PC3')
+    ax.set_xlabel("PC1")
+    ax.set_ylabel("PC2")
+    ax.set_zlabel("PC3")
 
     return fig
+
 
 def save_fig(fig, name, path, neptune_run, dpi=300):
     fig.savefig(path / name, dpi=dpi)
@@ -230,8 +230,8 @@ def save_fig(fig, name, path, neptune_run, dpi=300):
     plt.close(fig)
     print(f"Saved figure {name} to {path}")
 
-def main(full_config, run_path, artifact_path, figure_path, neptune_run):
 
+def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     from elise.config import FullConfig
     from elise.tracker import Tracker
 
@@ -272,22 +272,23 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     )
     save_fig(fig, "activity_match.png", figure_path, neptune_run, dpi)
 
-
     first_replay = 2 * int(pattern_duration / dt / sim_step)
     train_output = train["r_visible"][-last_train:].T
     val_output = val["r_visible"][-last_val:].T
     replay_output = replay["r_visible"][:first_replay].T
     train_target = val["r_target"][0].T
-    hidden_activity = train["r_latent"][-last_train:].T
+    # hidden_activity = train["r_latent"][-last_train:].T
 
     # PCA
-    latent_activity = replay["r_latent"][-2 * last_train:].T
+    latent_activity = replay["r_latent"][-2 * last_train :].T
     fig = plot_principal_components(latent_activity, target=train_target.T)
     save_fig(fig, "PCA.png", figure_path, neptune_run)
 
-
-    start_time = sim_params.pattern_duration * \
-    (sim_params.training_cycles -1) * sim_params.training_epochs
+    start_time = (
+        sim_params.pattern_duration
+        * (sim_params.training_cycles - 1)
+        * sim_params.training_epochs
+    )
     step = sim_params.dt * track_params.sim_step
     fig = plot_activity_target_match(
         train_output, val_output, replay_output, train_target, start_time, step
@@ -302,7 +303,12 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     replay_loss = replay["mse_loss_r"].T
     val_loss = val["mse_loss_r"].T
 
-    fig = plot_losses(replay_loss, val_loss, training_cycles=sim_params.training_cycles)
+    fig = plot_losses(
+        replay_loss,
+        val_loss,
+        training_cycles=sim_params.training_cycles,
+        replay_cycles=sim_params.replay_cycles,
+    )
     save_fig(fig, "losses.png", figure_path, neptune_run, dpi)
 
     dpi = 100
@@ -312,11 +318,13 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
         writer = PillowWriter(fps=30)
         ani.save("figs/activity.gif", writer)
 
+
 if __name__ == "__main__":
-    import argparse
     from pathlib import Path
-    from elise.config import FullConfig
+
     import neptune
+
+    from elise.config import FullConfig
 
     path = Path(__file__).parent.resolve()
     artifact_path = path / "artifacts"
