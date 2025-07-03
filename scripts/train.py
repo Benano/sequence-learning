@@ -93,8 +93,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     def to_biounits(x):
         return neuron_params.E_l + x * 20.0
 
-    loader = Dataloader(pattern, pre_transforms=[to_biounits])
-    loader.save(artifact_path / "dataloader.pkl")
+    dataloader = Dataloader(pattern, pre_transforms=[to_biounits])
 
     # Set seed to experiment_params.seed
     np.random.seed(experiment_params.seed)
@@ -120,7 +119,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     network.prepare_for_simulation(dt, optimizer_vis, optimizer_lat)
 
     # Every track params sim_step
-    u_target = loader.get_full_pattern(dt)[:: track_params.sim_step]
+    u_target = dataloader.get_full_pattern(dt)[:: track_params.sim_step]
     r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
 
     # Sim params
@@ -138,48 +137,48 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     validation_loss_u = []
     validation_loss_r = []
 
+    c_t = 0.0
     for epoch in tqdm(range(simulation_params.training_epochs)):
         for t in np.arange(0, training_duration, simulation_params.dt):
-            network(u_inp=loader(t))
+            network(u_inp=dataloader(t))
 
             # Only track the last two epochs
+            c_t = c_t + simulation_params.dt
             if epoch >= simulation_params.training_epochs - 2:
-                train_tracker.track(network, t)
+                train_tracker.track(network, c_t)
 
         # Add learning rate decay
         network.optimizer_vis.eta *= 0.95
         network.optimizer_lat.eta *= 0.95
 
         # Validation
-        # if epoch != simulation_params.training_epochs - 1:
-        for t in np.arange(0, validation_duration, simulation_params.dt):
-            network(u_inp=None)
-            validation_tracker.track(network, t)
+        if epoch != simulation_params.training_epochs - 1:
+            for t in np.arange(0, validation_duration, simulation_params.dt):
+                c_t = c_t + simulation_params.dt
+                network(u_inp=None)
+                validation_tracker.track(network, c_t)
 
-        u_out = np.array(validation_tracker["u_visible"])[-2 * len(u_target) :]
-        r_out = np.array(validation_tracker["r_visible"])[-2 * len(u_target) :]
+            u_out = np.array(validation_tracker["u_visible"])[-2 * len(u_target) :]
+            r_out = np.array(validation_tracker["r_visible"])[-2 * len(u_target) :]
 
-        mse_loss_u = compute_loss(u_out, u_target, mse)
-        mse_loss_r = compute_loss(r_out, r_target, mse)
+            mse_loss_u = compute_loss(u_out, u_target, mse)
+            mse_loss_r = compute_loss(r_out, r_target, mse)
 
-        if neptune_run:
-            neptune_run["validation_loss_r"].append(mse_loss_r)
+            if neptune_run:
+                neptune_run["validation_loss_r"].append(mse_loss_r)
 
-        validation_loss_r.append(mse_loss_r)
-        validation_loss_u.append(mse_loss_u)
+            validation_loss_r.append(mse_loss_r)
+            validation_loss_u.append(mse_loss_u)
 
-        print(f"Epoch {epoch} -  MSE u: {mse_loss_u}")  # noqa
-        print(f"Epoch {epoch} -  MSE r: {mse_loss_r}")  # noqa
-
-    network.save(artifact_path / "network.pkl")
+            # print(f"Epoch {epoch} -  MSE u: {mse_loss_u}")  # noqa
+            # print(f"Epoch {epoch} -  MSE r: {mse_loss_r}")  # noqa
 
     train_tracker.store("r_target", r_target)
     validation_tracker.store("r_target", r_target)
     validation_tracker.store("mse_loss_r", validation_loss_r)
     validation_tracker.store("mse_loss_u", validation_loss_u)
 
-    validation_tracker.save(artifact_path / "validation_tracker.pkl")
-    train_tracker.save(artifact_path / "train_tracker.pkl")
+    return network, dataloader, train_tracker, validation_tracker
 
 
 if __name__ == "__main__":
