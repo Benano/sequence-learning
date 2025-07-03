@@ -79,6 +79,9 @@ def main(seed):
     shutil.copy("config.toml", run_path)
     pattern_folder = Path("patterns").resolve()
 
+    if seed == 0:
+        print("SEEEED 0 MOTHERFUCKER")
+
     for pattern in experiment_params.patterns:
         p_file = pattern_folder / (pattern + ".txt")
         shutil.copy(p_file, pattern_path)
@@ -112,11 +115,33 @@ def main(seed):
     # Import your main function (assuming it's in the same directory as run.py)
     from train import main as train_main
 
-    train_main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng)
+    network, dataloader, train_tracker, validation_tracker = train_main(
+        full_config, run_path, artifact_path, pattern_path, neptune_run, rng
+    )
+
+    network.save(artifact_path / "network.pkl")
+    validation_tracker.save(artifact_path / "validation_tracker.pkl")
+    train_tracker.save(artifact_path / "train_tracker.pkl")
+    dataloader.save(artifact_path / "dataloader.pkl")
+
+    if seed == 0:
+        print("SEEEED 0 MOTHERFUCKER")
+        neptune_run["network"].upload(str(artifact_path / "network.pkl"))
+        neptune_run["train_tracker"].upload(str(artifact_path / "train_tracker.pkl"))
+        neptune_run["validation_tracker"].upload(
+            str(artifact_path / "validation_tracker.pkl")
+        )
+        neptune_run["dataloader"].upload(str(artifact_path / "dataloader.pkl"))
 
     from experiment import main as experiment_main
 
-    experiment_main(full_config, run_path, artifact_path, pattern_path, neptune_run)
+    replay_tracker = experiment_main(
+        full_config, run_path, artifact_path, pattern_path, neptune_run
+    )
+    replay_tracker.save(str(artifact_path / "replay_tracker.pkl"))
+
+    if seed == 0:
+        neptune_run["replay_tracker"].upload(str(artifact_path / "replay_tracker.pkl"))
 
     from plotting import main as plotting_main
 
