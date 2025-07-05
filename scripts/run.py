@@ -49,7 +49,7 @@ def track_config(config, neptune_run):
             neptune_run[f"config/{section}/{key}"] = value
 
 
-def main(seed):
+def main(seed, saving):
     from elise.config import FullConfig
 
     config_path = Path("config.toml").resolve()
@@ -88,7 +88,7 @@ def main(seed):
 
     neptune_run = neptune.init_run(
         project="elise-neurotma/ELiSe",
-        custom_run_id=run_path.name[-16:],
+        # custom_run_id=run_path.name[-16:],
         name=run_path.name,
         tags=[pattern_name],
     )
@@ -160,6 +160,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--seed", type=int, default=42, help="Random seed for NumPy RNG"
     )
+    parser.add_argument("--saving", default=False, help="Flag for savingd artifacts")
     args = parser.parse_args()
 
-    main(args.seed)
+    main(args.seed, args.saving)

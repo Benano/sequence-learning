@@ -46,6 +46,15 @@ def load_pattern_flexible(pattern_file):
     return pat, pat_type
 
 
+class WhiteNoise:
+    def __init__(self, sigma):
+        self.sigma = sigma
+
+    def __call__(self, x):
+        noise = np.random.normal(0, self.sigma, x.shape[0])
+        return x + noise
+
+
 def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     experiment_params = full_config.experiment_params
     neuron_params = full_config.neuron_params
@@ -99,7 +108,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
     online_transforms = []
     if simulation_params.noise_sigma > 0:
-        online_transforms.append(add_white_noise)
+        online_transforms.append(WhiteNoise(simulation_params.noise_sigma))
 
     dataloader = Dataloader(
         pattern, pre_transforms=[to_biounits], online_transforms=online_transforms
