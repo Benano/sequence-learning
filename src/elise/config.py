@@ -48,6 +48,7 @@ class SimulationConfig:
     eta_lat: float = 10e-3
     eta_decay: float = 0.95
     noise_sigma: float = 1.0
+    noise_alpha: float = 0.7
 
 
 @dataclass(slots=True)

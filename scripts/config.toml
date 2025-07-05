@@ -1,7 +1,7 @@
 [experiment_params]
 seed = 42
 patterns = ['fuer_elise_4']
-group_tag = 'noise_test'
+group_tag = 'noisy_elise_sigma_4'
 
 [network_params]
 num_lat = 100
@@ -22,9 +22,9 @@ d_int = 25
 
 [simulation_params]
 dt = 0.1
-training_epochs = 10
+training_epochs = 40
 replay_epochs = 10
-pattern_duration = 400.0
+pattern_duration = 300.0
 pattern_dt = 0.25
 training_cycles = 51
 validation_cycles = 2

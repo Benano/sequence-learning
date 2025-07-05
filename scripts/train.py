@@ -46,6 +46,23 @@ def load_pattern_flexible(pattern_file):
     return pat, pat_type
 
 
+class CorrelatedNoise:
+    def __init__(self, sigma, alpha):
+        self.sigma = sigma
+        self.alpha = alpha
+        self.last_noise = None
+
+    def __call__(self, x):
+        if self.last_noise is None:
+            noise = np.random.normal(0, self.sigma, x.shape[0])
+        else:
+            noise = self.alpha * self.last_noise + (1 - self.alpha) * np.random.normal(
+                0, self.sigma, x.shape[0]
+            )
+        self.last_noise = noise
+        return x + noise
+
+
 class WhiteNoise:
     def __init__(self, sigma):
         self.sigma = sigma
@@ -102,13 +119,16 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     def to_biounits(x):
         return neuron_params.E_l + x * 20.0
 
-    def add_white_noise(x):
-        noise = np.random.normal(0, simulation_params.noise_sigma, x.shape[0])
-        return x + noise
-
     online_transforms = []
     if simulation_params.noise_sigma > 0:
-        online_transforms.append(WhiteNoise(simulation_params.noise_sigma))
+        if simulation_params.noise_alpha > 0:
+            online_transforms.append(
+                CorrelatedNoise(
+                    simulation_params.noise_sigma, simulation_params.noise_alpha
+                )
+            )
+        else:
+            online_transforms.append(WhiteNoise(simulation_params.noise_sigma))
 
     dataloader = Dataloader(
         pattern, pre_transforms=[to_biounits], online_transforms=online_transforms
