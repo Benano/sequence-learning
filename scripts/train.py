@@ -93,7 +93,17 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     def to_biounits(x):
         return neuron_params.E_l + x * 20.0
 
-    dataloader = Dataloader(pattern, pre_transforms=[to_biounits])
+    def add_white_noise(x):
+        noise = np.random.normal(0, simulation_params.noise_sigma, x.shape[0])
+        return x + noise
+
+    online_transforms = []
+    if simulation_params.noise_sigma > 0:
+        online_transforms.append(add_white_noise)
+
+    dataloader = Dataloader(
+        pattern, pre_transforms=[to_biounits], online_transforms=online_transforms
+    )
 
     # Set seed to experiment_params.seed
     np.random.seed(experiment_params.seed)
@@ -192,12 +202,12 @@ if __name__ == "__main__":
     config_path = path / "config.toml"
     full_config = FullConfig(config_path)
 
-    with open("run_id.txt", "r") as f:
-        run_id = f.read().strip()
+    #    with open("run_id.txt", "r") as f:
+    #        run_id = f.read().strip()
 
     neptune_run = neptune.init_run(
         project="elise-neurotma/ELiSe",
-        custom_run_id=run_id,
+        #        custom_run_id=run_id,
         name=path.name,
         tags=full_config.experiment_params.patterns,
     )
@@ -210,4 +220,5 @@ if __name__ == "__main__":
         artifact_path=artifact_path,
         pattern_path=path / "patterns",
         neptune_run=neptune_run,
+        rng=rng,
     )
