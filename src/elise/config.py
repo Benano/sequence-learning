@@ -46,6 +46,7 @@ class SimulationConfig:
     validation_interval: int = 20
     eta_out: float = 10e-4
     eta_lat: float = 10e-3
+    eta_decay: float = 0.95
     noise_sigma: float = 1.0
 
 

@@ -22,7 +22,7 @@ d_int = 25
 
 [simulation_params]
 dt = 0.1
-training_epochs = 40
+training_epochs = 10
 replay_epochs = 10
 pattern_duration = 400.0
 pattern_dt = 0.25

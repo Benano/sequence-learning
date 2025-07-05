@@ -158,8 +158,8 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
                 train_tracker.track(network, c_t)
 
         # Add learning rate decay
-        network.optimizer_vis.eta *= 0.95
-        network.optimizer_lat.eta *= 0.95
+        network.optimizer_vis.eta *= simulation_params.eta_decay
+        network.optimizer_lat.eta *= simulation_params.eta_decay
 
         # Validation
         if epoch != simulation_params.training_epochs - 1:
