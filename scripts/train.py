@@ -47,17 +47,21 @@ def load_pattern_flexible(pattern_file):
 
 
 class CorrelatedNoise:
-    def __init__(self, sigma, alpha):
+    def __init__(self, sigma, tau, dt):
         self.sigma = sigma
-        self.alpha = alpha
+        self.tau = tau
+        self.dt = dt
         self.last_noise = None
 
-    def __call__(self, x):
+    def __call__(self, x, dt=1.0):
         if self.last_noise is None:
             noise = np.random.normal(0, self.sigma, x.shape[0])
         else:
-            noise = self.alpha * self.last_noise + (1 - self.alpha) * np.random.normal(
-                0, self.sigma, x.shape[0]
+            dW = np.random.normal(0, 1, x.shape[0]) * np.sqrt(dt)
+            noise = (
+                self.last_noise
+                + (-self.last_noise / self.tau) * dt
+                + self.sigma * np.sqrt(2 / self.tau) * dW
             )
         self.last_noise = noise
         return x + noise
@@ -121,18 +125,22 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
     online_transforms = []
     if simulation_params.noise_sigma > 0:
-        if simulation_params.noise_alpha > 0:
+        if simulation_params.noise_tau > 0:
             online_transforms.append(
                 CorrelatedNoise(
-                    simulation_params.noise_sigma, simulation_params.noise_alpha
+                    simulation_params.noise_sigma,
+                    simulation_params.noise_tau,
+                    simulation_params.dt,
                 )
             )
+
         else:
             online_transforms.append(WhiteNoise(simulation_params.noise_sigma))
 
     dataloader = Dataloader(
         pattern, pre_transforms=[to_biounits], online_transforms=online_transforms
     )
+    dummyloader = Dataloader(pattern)
 
     # Set seed to experiment_params.seed
     np.random.seed(experiment_params.seed)
@@ -158,7 +166,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     network.prepare_for_simulation(dt, optimizer_vis, optimizer_lat)
 
     # Every track params sim_step
-    u_target = dataloader.get_full_pattern(dt)[:: track_params.sim_step]
+    u_target = dummyloader.get_full_pattern(dt)[:: track_params.sim_step]
     r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
 
     # Sim params

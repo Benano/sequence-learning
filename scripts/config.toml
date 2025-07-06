@@ -32,8 +32,9 @@ replay_cycles = 10
 validation_interval = 20
 eta_out = 10e-4
 eta_lat = 10e-3
-eta_decay = 0.95
-noise_sigma = 4
+eta_decay = 0.98
+noise_sigma = 5
+noise_tau = 40
 
 
 [neuron_params]
