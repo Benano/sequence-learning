@@ -20,6 +20,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
         artifact_path / "network.pkl",
     )
     loader = DiscreteDataloader.load(artifact_path / "dataloader.pkl")
+    loader.online_transforms = []
 
     # Every track params sim_step
     dt = network.dt
