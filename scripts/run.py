@@ -52,6 +52,8 @@ def track_config(config, neptune_run):
 def main(seed, saving):
     from elise.config import FullConfig
 
+    print(saving)
+
     config_path = Path("config.toml").resolve()
     full_config = FullConfig(config_path)
     experiment_params = full_config.experiment_params
@@ -78,9 +80,6 @@ def main(seed, saving):
     shutil.copy("experiment.py", run_path)
     shutil.copy("config.toml", run_path)
     pattern_folder = Path("patterns").resolve()
-
-    if seed == 0:
-        print("SEEEED 0 MOTHERFUCKER")
 
     for pattern in experiment_params.patterns:
         p_file = pattern_folder / (pattern + ".txt")
@@ -124,14 +123,14 @@ def main(seed, saving):
     train_tracker.save(artifact_path / "train_tracker.pkl")
     dataloader.save(artifact_path / "dataloader.pkl")
 
-    if seed == 0:
-        print("SEEEED 0 MOTHERFUCKER")
+    if saving:
         neptune_run["network"].upload(str(artifact_path / "network.pkl"))
         neptune_run["train_tracker"].upload(str(artifact_path / "train_tracker.pkl"))
         neptune_run["validation_tracker"].upload(
             str(artifact_path / "validation_tracker.pkl")
         )
         neptune_run["dataloader"].upload(str(artifact_path / "dataloader.pkl"))
+        neptune_run["sys/tags"].add("full_save")
 
     from experiment import main as experiment_main
 
@@ -140,7 +139,7 @@ def main(seed, saving):
     )
     replay_tracker.save(str(artifact_path / "replay_tracker.pkl"))
 
-    if seed == 0:
+    if saving:
         neptune_run["replay_tracker"].upload(str(artifact_path / "replay_tracker.pkl"))
 
     from plotting import main as plotting_main
@@ -160,7 +159,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--seed", type=int, default=42, help="Random seed for NumPy RNG"
     )
-    parser.add_argument("--saving", default=False, help="Flag for savingd artifacts")
+    parser.add_argument(
+        "--saving", action="store_true", help="Flag for savingd artifacts"
+    )
     args = parser.parse_args()
 
     main(args.seed, args.saving)
