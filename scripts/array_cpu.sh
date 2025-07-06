@@ -1,11 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name="elise_array"
-#SBATCH --time=7:00:00
+#SBATCH --time=2:00:00
 #SBATCH --ntasks=10
 #SBATCH --array=0-2
 #SBATCH --ntasks-per-node=10
 #SBATCH --cpus-per-task=12
-
+#SBATCH --mem-per-cpu=2G
+#SBATCH --partition=epyc2
+#
 Your code below this line
 module load Anaconda3
 eval "$(conda shell.bash hook)"
@@ -26,7 +28,6 @@ for i in $( seq 0 $((SLURM_NTASKS-1))); do
       saving=""
   fi
     eval "python run.py --seed $TASK_ID $saving" &
-    echo "Running task with ID: $TASK_ID"
 
 done
 
