@@ -1,17 +1,15 @@
 #!/bin/bash
-#SBATCH --job-name="testing slurm"
+#SBATCH --job-name="elise_array"
 #SBATCH --time=7:00:00
 #SBATCH --ntasks=10
 #SBATCH --array=0-2
 #SBATCH --ntasks-per-node=10
 #SBATCH --cpus-per-task=12
-#SBATCH --partition=batch
 
-# Your code below this line
-# module load Anaconda3
-# eval "$(conda shell.bash hook)"
-# conda activate elise
-# mamba activate elise
+Your code below this line
+module load Anaconda3
+eval "$(conda shell.bash hook)"
+conda activate elise
 
 NODE_ID=$SLURM_ARRAY_TASK_ID
 

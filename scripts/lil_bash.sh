@@ -7,7 +7,7 @@ for seed in {0..10}; do
   else
       saving=""
   fi
-    eval "python run.py --seed $seed $saving"
+    eval "python run.py --seed $seed $saving" &
 
 done
 
