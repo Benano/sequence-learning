@@ -23,7 +23,6 @@ class WeightConfig:
     p: float = 0.5
     q: float = 0.3
     p0: float = 0.1
-    den_spars: float = 0.3
     W_vis_vis: tuple = (0.0, 0.5)
     W_vis_lat: tuple = (0.0, 0.5)
     W_lat_lat: tuple = (0.0, 0.5)
@@ -70,7 +69,6 @@ class NeuronConfig:
 @dataclass(slots=True)
 class TrackingConfig:
     sim_step: int = 2
-    epoch_step: int = 1
     vars_train: list = field(default_factory=list)
     vars_epoch: list = field(default_factory=list)
     vars_replay: list = field(default_factory=list)
