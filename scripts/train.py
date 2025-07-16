@@ -23,7 +23,6 @@ def load_multi_hot_pattern(filename):
 
 def load_one_hot_pattern(pattern_file):
     pat = np.loadtxt(pattern_file, delimiter=" ").astype(int).T
-    pat = pat[:, pat.any(axis=0)]
 
     return pat
 
@@ -105,8 +104,17 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         pattern_file = pattern_path / f"{experiment_params.patterns[0]}.txt"
         full_pattern, pattern_type = load_pattern_flexible(pattern_file)
 
-    if len(full_pattern) > 300:
-        full_pattern = full_pattern[:250, :]
+    if len(full_pattern) > simulation_params.pattern_duration:
+        full_pattern = full_pattern[: int(simulation_params.pattern_duration), :]
+
+    full_pattern = full_pattern[:, full_pattern.any(axis=0)]
+
+    # Upload pattern to Neptune
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.imshow(full_pattern.T, aspect="auto", cmap="gray", interpolation="none")
+    neptune_run["pattern"].upload(fig)
 
     if pattern_type == "multi-hot":
         pattern = MultiHotPattern(
@@ -216,9 +224,6 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
             validation_loss_r.append(mse_loss_r)
             validation_loss_u.append(mse_loss_u)
-
-            # print(f"Epoch {epoch} -  MSE u: {mse_loss_u}")  # noqa
-            # print(f"Epoch {epoch} -  MSE r: {mse_loss_r}")  # noqa
 
     train_tracker.store("r_target", r_target)
     validation_tracker.store("r_target", r_target)
