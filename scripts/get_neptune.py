@@ -12,6 +12,11 @@ def get_neptune_losses(tag):
 
     run_ids = filtered_runs["sys/id"].tolist()
 
+    full_save_run = filtered_runs[
+        runs_table["sys/tags"].apply(lambda tags: "full_save" in tags)
+    ]
+    run_save_id = full_save_run["sys/id"].tolist()[0]
+
     replay_losses = []
     validation_losses = []
     for run_id in run_ids:
@@ -27,33 +32,37 @@ def get_neptune_losses(tag):
     replay_losses = np.array(replay_losses)
     validation_losses = np.array(validation_losses)
 
-    return replay_losses, validation_losses, run_ids
+    return replay_losses, validation_losses, run_ids, run_save_id
 
 
 if __name__ == "__main__":
     from pathlib import Path
 
-    tag = "testing_cluster"
-    replay_losses, validation_losses, run_ids = get_neptune_losses(tag)
+    for i in np.arange(8):
+        tag_name = f"Prelude{i + 1}"
 
-    save_loc = Path(
-        "/Users/benano/Documents/org/manuscripts/SequenceLearningPaper/data/testing/"
-    )
-    save_loc = Path("/Users/benano/Documents/testing_cluster")
-    save_loc_replay = save_loc / "replay_losses.npy"
-    save_loc_validation = save_loc / "validation_losses.npy"
-    save_loc_config = save_loc / "config.toml"
+        save_loc = Path(
+            f"/Users/benano/Documents/org/manuscripts/SequenceLearningPaper/data/preludes/{tag_name}/"
+        )
+        save_loc.mkdir(parents=True, exist_ok=True)
+        # save_loc = Path("/Users/benano/Documents/testing_cluster")
+        save_loc_replay = save_loc / "replay_losses.npy"
+        save_loc_validation = save_loc / "validation_losses.npy"
+        save_loc_config = save_loc / "config.toml"
 
-    name = run_ids[0]
-    c_run = neptune.init_run(
-        project="elise-neurotma/ELiSe", with_id=name, mode="read-only"
-    )
-    c_run["parameters/config"].download(destination=str(save_loc_config))
+        replay_losses, validation_losses, run_ids, run_save_id = get_neptune_losses(
+            tag_name
+        )
+        c_run = neptune.init_run(
+            project="elise-neurotma/ELiSe", with_id=run_save_id, mode="read-only"
+        )
+        c_run["parameters/config"].download(destination=str(save_loc_config))
 
-    np.save(save_loc_replay, replay_losses)
-    np.save(save_loc_validation, validation_losses)
+        np.save(save_loc_replay, replay_losses)
+        np.save(save_loc_validation, validation_losses)
 
-    # c_run["dataloader"].download(destination=str(save_loc / "dataloader.pkl"))
-    # c_run["network"].download(destination=str(save_loc / "network.pkl"))
-    # c_run["train_tracker"].download(destination=str(save_loc / "train_tracker.pkl"))
-    # c_run["replay_tracker"].download(destination=str(save_loc / "replay_tracker.pkl"))
+        c_run["network"].download(destination=str(save_loc / "network.pkl"))
+        c_run["train_tracker"].download(destination=str(save_loc / "train_tracker.pkl"))
+        c_run["replay_tracker"].download(
+            destination=str(save_loc / "replay_tracker.pkl")
+        )
