@@ -57,10 +57,10 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
                 u_tar = loader(t)[:first]
                 u_inp[:first] = u_tar
 
-                network(u_inp=u_inp)
+                network(u_inp=u_inp, learn=False)
 
             else:
-                network(u_inp=None)
+                network(u_inp=None, learn=False)
 
             replay_tracker.track(network, t)
 

@@ -183,10 +183,11 @@ class Network:
         self.r = new_r
         self.rate_buffer.roll(new_r)
 
-    def __call__(self, u_inp):
+    def __call__(self, u_inp, learn: bool = True):
         dudt, dvdt, dwdt, dr_bar_dt = self._compute_update(u_inp)
         self._update_dyanmic_variables(dudt, dvdt, dr_bar_dt)
-        self._update_weights(dwdt)
+        if learn:
+            self._update_weights(dwdt)
         self._update_rates_and_buffer()
 
     def save(self, path: str) -> None:
