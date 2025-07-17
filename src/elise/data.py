@@ -62,16 +62,18 @@ class BasePattern(ABC):
             dt is not None and duration is not None
         ):
             raise ValueError("Exactly one of 'dt' or 'duration' must be provided")
-        if type(dt) is float:
+
+        # Use isinstance, and handle int case as desired
+        if isinstance(dt, float):
             self.dt = dt
             self.duration = self.dt * self.__len__()
-        if type(duration) is float:
+        elif isinstance(duration, float):
             self.duration = duration
             self.dt = self.duration / self.__len__()
         else:
-            raise TypeError(
-                "dt and duration must be of type float, not {}".format(type(dt))
-            )
+            # Neither dt nor duration is a float
+            raise TypeError("dt/duration must be of type float")
+
         self.shape = self.pattern.shape
 
     @abstractmethod
