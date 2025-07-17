@@ -68,6 +68,10 @@ class BasePattern(ABC):
         if type(duration) is float:
             self.duration = duration
             self.dt = self.duration / self.__len__()
+        else:
+            raise TypeError(
+                "dt and duration must be of type float, not {}".format(type(dt))
+            )
         self.shape = self.pattern.shape
 
     @abstractmethod
