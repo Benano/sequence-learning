@@ -5,6 +5,7 @@ import numpy as np
 from tqdm import tqdm
 
 from elise.data import Dataloader, MultiHotPattern, Pattern
+from elise.data_transforms import CorrelatedNoise, WhiteNoise
 from elise.model import Network, eq_phi  # noqa
 from elise.optimizer import SimpleUpdater
 from elise.rate_buffer import Buffer
@@ -43,36 +44,6 @@ def load_pattern_flexible(pattern_file):
         pat_type = "one-hot"
 
     return pat, pat_type
-
-
-class CorrelatedNoise:
-    def __init__(self, sigma, tau, dt):
-        self.sigma = sigma
-        self.tau = tau
-        self.dt = dt
-        self.last_noise = None
-
-    def __call__(self, x, dt=1.0):
-        if self.last_noise is None:
-            noise = np.random.normal(0, self.sigma, x.shape[0])
-        else:
-            dW = np.random.normal(0, 1, x.shape[0]) * np.sqrt(dt)
-            noise = (
-                self.last_noise
-                + (-self.last_noise / self.tau) * dt
-                + self.sigma * np.sqrt(2 / self.tau) * dW
-            )
-        self.last_noise = noise
-        return x + noise
-
-
-class WhiteNoise:
-    def __init__(self, sigma):
-        self.sigma = sigma
-
-    def __call__(self, x):
-        noise = np.random.normal(0, self.sigma, x.shape[0])
-        return x + noise
 
 
 def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
@@ -119,14 +90,19 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     if pattern_type == "multi-hot":
         pattern = MultiHotPattern(
             pattern=full_pattern,
-            duration=simulation_params.pattern_duration,
+            # duration=simulation_params.pattern_duration,
             width=network_params.num_vis,
+            dt=simulation_params.pattern_dt,
         )
 
     elif pattern_type == "one-hot":
         pattern = Pattern(
-            pattern=full_pattern, duration=simulation_params.pattern_duration
+            pattern=full_pattern,
+            # duration=simulation_params.pattern_duration,
+            dt=simulation_params.pattern_dt,
         )
+
+    breakpoint()
 
     def to_biounits(x):
         return neuron_params.E_l + x * 20.0
