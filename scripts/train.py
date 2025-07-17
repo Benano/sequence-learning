@@ -90,19 +90,15 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     if pattern_type == "multi-hot":
         pattern = MultiHotPattern(
             pattern=full_pattern,
-            # duration=simulation_params.pattern_duration,
+            duration=simulation_params.pattern_duration,
             width=network_params.num_vis,
-            dt=simulation_params.pattern_dt,
         )
 
     elif pattern_type == "one-hot":
         pattern = Pattern(
             pattern=full_pattern,
-            # duration=simulation_params.pattern_duration,
             dt=simulation_params.pattern_dt,
         )
-
-    breakpoint()
 
     def to_biounits(x):
         return neuron_params.E_l + x * 20.0
