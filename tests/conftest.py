@@ -10,7 +10,6 @@ def default_weight_config():
         p=0.5,
         q=0.3,
         p0=0.1,
-        weight_seed=42,
         W_vis_vis=[0.0, 0.5],
         W_vis_lat=[0.0, 0.5],
         W_lat_lat=[0.0, 0.5],
