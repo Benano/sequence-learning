@@ -19,17 +19,15 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
     network = Network.load(
         artifact_path / "network.pkl",
     )
-    loader = DiscreteDataloader.load(artifact_path / "dataloader.pkl")
-    loader.online_transforms = []
+    dataloader = DiscreteDataloader.load(artifact_path / "dataloader.pkl")
+    dataloader.online_transforms = []
 
     # Every track params sim_step
     dt = network.dt
-    u_target = loader.get_full_pattern(dt)[:: track_params.sim_step]
+    u_target = dataloader.get_full_pattern(dt)[:: track_params.sim_step]
     r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
 
-    replay_duration = (
-        simulation_params.replay_cycles * simulation_params.pattern_duration
-    )
+    replay_duration = simulation_params.replay_cycles * dataloader.duration
 
     replay_tracker = Tracker(track_params.vars_replay, track_params.sim_step)
 
@@ -54,7 +52,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
 
             if partial_replay:
                 u_inp = copy.deepcopy(network.get_val("u", "visible"))
-                u_tar = loader(t)[:first]
+                u_tar = dataloader(t)[:first]
                 u_inp[:first] = u_tar
 
                 network(u_inp=u_inp, learn=False)
