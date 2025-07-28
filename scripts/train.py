@@ -149,7 +149,6 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     u_target = dummyloader.get_full_pattern(dt)[:: track_params.sim_step]
     r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
 
-    breakpoint()
     # Sim params
     training_duration = simulation_params.training_cycles * dataloader.duration
     validation_duration = simulation_params.validation_cycles * dataloader.duration
