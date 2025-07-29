@@ -78,14 +78,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     if len(full_pattern) > simulation_params.pattern_duration:
         full_pattern = full_pattern[: int(simulation_params.pattern_duration), :]
 
-    full_pattern = full_pattern[:, full_pattern.any(axis=0)]
-
     # Upload pattern to Neptune
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.imshow(full_pattern.T, aspect="auto", cmap="gray", interpolation="none")
-    neptune_run["pattern"].upload(fig)
 
     if pattern_type == "multi-hot":
         pattern = MultiHotPattern(
@@ -95,6 +88,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         )
 
     elif pattern_type == "one-hot":
+        full_pattern = full_pattern[:, full_pattern.any(axis=0)]
         pattern = Pattern(
             pattern=full_pattern,
             dt=simulation_params.pattern_dt,
@@ -125,7 +119,21 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     # Set seed to experiment_params.seed
     np.random.seed(experiment_params.seed)
 
-    # get for random numbers for the seeds of the weights
+    import matplotlib.pyplot as plt
+
+    # Create imshow of pattern
+    target_pattern = dataloader.get_full_pattern(simulation_params.dt)
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.imshow(target_pattern.T, aspect="auto", cmap="gray", interpolation="none")
+    ax.set_title("Input Pattern")
+    ax.set_xlabel("Time (ms)")
+    ax.set_ylabel("Neurons")
+    clean_target_pattern = dummyloader.get_full_pattern(simulation_params.dt)
+
+    if neptune_run:
+        neptune_run["pattern"].upload(fig)
+        # neptune_run["target_pattern"].store(target_pattern)
+        # neptune_run["clean_target_pattern"].store(clean_target_pattern)
 
     # Network
     rate_buffer = Buffer
