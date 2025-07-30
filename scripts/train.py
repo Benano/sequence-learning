@@ -37,10 +37,12 @@ def load_pattern_flexible(pattern_file, pattern_duration, pattern_dt=None):
         # Try multi-hot
         pat = load_multi_hot_pattern(pattern_file)
         # TODO Get width from pattern
+        #
+        # breakpoint()
         pattern = MultiHotPattern(
             pattern=pat,
             duration=pattern_duration,
-            width=9,
+            # width=9,
         )
 
     except (ValueError, SyntaxError):
@@ -120,9 +122,6 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
     clean_target_pattern = dummyloader.get_full_pattern(simulation_params.dt)
-    plt.show()
-
-    breakpoint()
 
     if neptune_run:
         neptune_run["pattern"].upload(fig)
@@ -133,7 +132,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     rate_buffer = Buffer
     dendritic_weights = DendriticWeights(weight_params, rng)
     somatic_weights = SomaticWeights(weight_params, rng)
-    network_params.num_vis = pattern.shape[1]
+    network_params.num_vis = 13  # TODO FIX THIS
     network = Network(
         network_params, neuron_params, dendritic_weights, somatic_weights, rate_buffer
     )
@@ -185,6 +184,8 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
             u_out = np.array(validation_tracker["u_visible"])[-2 * len(u_target) :]
             r_out = np.array(validation_tracker["r_visible"])[-2 * len(u_target) :]
+
+            breakpoint()
 
             mse_loss_u = compute_loss(u_out, u_target, mse)
             mse_loss_r = compute_loss(r_out, r_target, mse)

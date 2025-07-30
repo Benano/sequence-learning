@@ -160,17 +160,22 @@ class Pattern2:
     pass
 
 
+def flatten(lst):
+    for el in lst:
+        if isinstance(el, list):
+            yield from flatten(el)
+        else:
+            yield el
+
+
 class OneHotPattern(BasePattern):
     """
     Turn a sequential pattern into a one-hot encoded pattern.
 
     This class extends the base Pattern class to create one-hot encoded patterns.
-
-    :ivar _width: The width of the one-hot encoded pattern
-    :vartype _width: int
     """
 
-    def __init__(self, pattern: npt.NDArray, dt: float, width: int) -> None:
+    def __init__(self, pattern: npt.NDArray, dt: float) -> None:
         """
         Initialize the OneHotPattern object.
 
@@ -178,16 +183,18 @@ class OneHotPattern(BasePattern):
         :type pattern: npt.NDArray
         :param dt: Time step
         :type dt: float
-        :param width: Width of the one-hot encoded pattern
-        :type width: int
         """
-        if len(pattern.shape) != 1:
-            raise ValueError("pattern must be one dimensional")
-        if np.max(pattern) > width - 1:
-            raise ValueError(
-                "width must be greater then or equal to the maximum value in pattern"
-            )
-        self._width = width
+
+        self._width = np.max(pattern) + 1
+
+        # if len(pattern.shape) != 1:
+        #     raise ValueError("pattern must be one dimensional")
+        # if np.max(pattern) > width - 1:
+        #     raise ValueError(
+        #         "width must be greater then or equal to the maximum value in pattern"
+        #     )
+        # self._width = width
+        #
         super().__init__(pattern, dt)
 
     def _convert(self, pattern):
@@ -195,6 +202,14 @@ class OneHotPattern(BasePattern):
         for i, j in enumerate(pattern):
             res[i, j] = 1.0
         return res
+
+
+def flatten_nested_tuples(lst):
+    for el in lst:
+        if isinstance(el, (tuple, list)):
+            yield from flatten_nested_tuples(el)
+        else:
+            yield el
 
 
 class MultiHotPattern(BasePattern):
@@ -208,23 +223,15 @@ class MultiHotPattern(BasePattern):
     """
 
     def __init__(
-        self, pattern: List[int | List[int]], duration: float, width: int
+        self,
+        pattern: List[int | List[int]],
+        duration: float,
     ) -> None:
         """DOCSTRING."""
         # max in list:
         max_val = -1000000
-        for i in pattern:
-            if isinstance(i, int) and i > max_val:
-                max_val = i
-            elif isinstance(i, list):
-                for j in i:
-                    if j > max_val:
-                        max_val = j
-        if max_val > width - 1:
-            raise ValueError(
-                "width must be greater then or equal to the maximum value in pattern"
-            )
-        self._width = width
+
+        self._width = max(flatten_nested_tuples(pattern)) + 1
         super().__init__(pattern, duration=duration)
 
     def _convert(self, pattern):
@@ -618,11 +625,15 @@ class MultiPatternDataloader(BaseDataloader):
     ):
         self.dataloaders = []
         self.durations = []
+        self.width = 0
 
         for pattern in patterns:
             dl = Dataloader(pattern, pre_transform, online_transform)
             self.dataloaders.append(dl)
             self.durations.append(dl.duration)
+            self.width += pattern.shape[-1]
+
+        self.duration = np.max(self.durations)
 
     def __call__(self, t: float, offset: float = 0.0):
         pats = [np.asarray(dl(t, offset)) for dl in self.dataloaders]
@@ -635,9 +646,7 @@ class MultiPatternDataloader(BaseDataloader):
             t += dt
 
     def get_full_pattern(self, dt: float):
-        # Use min(self.durations) for safe range by default (can be changed)
-        max_duration = max(self.durations)
-        return np.array([pattern for _, pattern in self.iter(0, max_duration, dt)])
+        return np.array([pattern for _, pattern in self.iter(0, self.duration, dt)])
 
     def save(self, path: str):
         with open(path, "wb") as f:

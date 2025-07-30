@@ -60,7 +60,6 @@ def main(path, artifacts_path):
     pattern = MultiHotPattern(
         pattern=elise,
         duration=simulation_params.pattern_duration,
-        width=network_params.num_vis,
     )
     loader = Dataloader(pattern, pre_transforms=[to_biounits])
     u_target = loader.get_full_pattern(dt)

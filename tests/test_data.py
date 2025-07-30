@@ -122,7 +122,7 @@ def onehot_sequence():
 
 @pytest.fixture()
 def onehot_pattern(onehot_sequence):
-    return OneHotPattern(onehot_sequence, dt=DT, width=3)
+    return OneHotPattern(onehot_sequence, dt=DT)
 
 
 def test_onehot(onehot_pattern, base_sequence):
@@ -141,7 +141,7 @@ def multihot_sequence():
 
 @pytest.fixture()
 def multihot_pattern(multihot_sequence):
-    return MultiHotPattern(multihot_sequence, duration=0.3, width=5)
+    return MultiHotPattern(multihot_sequence, duration=0.3)
 
 
 def test_multihot(multihot_pattern):
