@@ -599,3 +599,51 @@ def Dataloader(
         raise TypeError(
             f"pattern should inherit from BasePattern or BaseContinuousPatter."  # noqa
         )
+
+
+class MultiPatternDataloader(BaseDataloader):
+    """
+    Dataloader that concatenates the outputs of multiple patterns.
+
+    :param patterns: List of tuples with:
+                     (pattern, [pre_transforms], [online_transforms])
+                     Transforms are optional.
+    """
+
+    def __init__(
+        self,
+        patterns: List[Tuple[BasePattern, List[Callable], List[Callable]]],
+        pre_transform: List[Callable] = [],
+        online_transform: List[Callable] = [],
+    ):
+        self.dataloaders = []
+        self.durations = []
+
+        for pattern in patterns:
+            dl = Dataloader(pattern, pre_transform, online_transform)
+            self.dataloaders.append(dl)
+            self.durations.append(dl.duration)
+
+    def __call__(self, t: float, offset: float = 0.0):
+        pats = [np.asarray(dl(t, offset)) for dl in self.dataloaders]
+        return np.concatenate(pats, axis=-1)
+
+    def iter(self, t_start: float, t_stop: float, dt: float):
+        t = t_start
+        while t < t_stop:
+            yield t, self.__call__(t)
+            t += dt
+
+    def get_full_pattern(self, dt: float):
+        # Use min(self.durations) for safe range by default (can be changed)
+        max_duration = max(self.durations)
+        return np.array([pattern for _, pattern in self.iter(0, max_duration, dt)])
+
+    def save(self, path: str):
+        with open(path, "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def load(cls, path: str):
+        with open(path, "rb") as f:
+            return pickle.load(f)

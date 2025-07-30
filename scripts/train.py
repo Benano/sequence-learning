@@ -4,7 +4,7 @@ import neptune
 import numpy as np
 from tqdm import tqdm
 
-from elise.data import Dataloader, MultiHotPattern, Pattern
+from elise.data import Dataloader, MultiHotPattern, MultiPatternDataloader, Pattern
 from elise.data_transforms import CorrelatedNoise, WhiteNoise
 from elise.model import Network, eq_phi  # noqa
 from elise.optimizer import SimpleUpdater
@@ -28,7 +28,7 @@ def load_one_hot_pattern(pattern_file):
     return pat
 
 
-def load_pattern_flexible(pattern_file):
+def load_pattern_flexible(pattern_file, pattern_duration, pattern_dt=None):
     """
     Try to load a pattern file as multi-hot; if that fails, load as one-hot.
     Returns a numpy array.
@@ -36,14 +36,27 @@ def load_pattern_flexible(pattern_file):
     try:
         # Try multi-hot
         pat = load_multi_hot_pattern(pattern_file)
-        pat_type = "multi-hot"
+        # TODO Get width from pattern
+        pattern = MultiHotPattern(
+            pattern=pat,
+            duration=pattern_duration,
+            width=9,
+        )
 
     except (ValueError, SyntaxError):
         # Try one-hot
         pat = load_one_hot_pattern(pattern_file)
-        pat_type = "one-hot"
 
-    return pat, pat_type
+        if len(pat) > pattern_duration:
+            pat = pat[: int(pattern_duration), :]
+        pat = pat[:, pat.any(axis=0)]
+
+        pattern = Pattern(
+            pattern=pat,
+            dt=pattern_dt,
+        )
+
+    return pattern
 
 
 def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
@@ -54,45 +67,13 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     weight_params = full_config.weight_params
     track_params = full_config.tracking_params
 
-    if len(experiment_params.patterns) > 1:
-        patterns = []
-        pattern_types = []
-        for pattern_name in experiment_params.patterns:
-            pattern_file = pattern_path / f"{pattern_name}.txt"
-            pattern, pattern_type = load_pattern_flexible(pattern_file)
-
-            patterns.append(pattern)
-            pattern_types.append(pattern_type)
-
-        # Check that patterns are all the same type
-        if len(set(pattern_types)) > 1:
-            raise ValueError("All patterns must be of the same type for stacking.")
-        min_length = min([len(p) for p in patterns])
-        patterns = [p[:min_length] for p in patterns]
-        full_pattern = np.hstack(patterns)
-
-    else:
-        pattern_file = pattern_path / f"{experiment_params.patterns[0]}.txt"
-        full_pattern, pattern_type = load_pattern_flexible(pattern_file)
-
-    if len(full_pattern) > simulation_params.pattern_duration:
-        full_pattern = full_pattern[: int(simulation_params.pattern_duration), :]
-
-    # Upload pattern to Neptune
-
-    if pattern_type == "multi-hot":
-        pattern = MultiHotPattern(
-            pattern=full_pattern,
-            duration=simulation_params.pattern_duration,
-            width=network_params.num_vis,
+    patterns = []
+    for pattern_name in experiment_params.patterns:
+        pattern_file = pattern_path / f"{pattern_name}.txt"
+        pattern = load_pattern_flexible(
+            pattern_file, simulation_params.pattern_duration, simulation_params.dt
         )
-
-    elif pattern_type == "one-hot":
-        full_pattern = full_pattern[:, full_pattern.any(axis=0)]
-        pattern = Pattern(
-            pattern=full_pattern,
-            dt=simulation_params.pattern_dt,
-        )
+        patterns.append(pattern)
 
     def to_biounits(x):
         return neuron_params.E_l + x * 20.0
@@ -111,10 +92,20 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         else:
             online_transforms.append(WhiteNoise(simulation_params.noise_sigma))
 
-    dataloader = Dataloader(
-        pattern, pre_transforms=[to_biounits], online_transforms=online_transforms
-    )
-    dummyloader = Dataloader(pattern)
+    if len(patterns) > 1:
+        dataloader = MultiPatternDataloader(
+            patterns=patterns,
+            pre_transform=[to_biounits],
+            online_transform=online_transforms,
+        )
+        dummyloader = MultiPatternDataloader(patterns)
+    else:
+        dataloader = Dataloader(
+            patterns[0],
+            pre_transforms=[to_biounits],
+            online_transforms=online_transforms,
+        )
+        dummyloader = Dataloader(patterns[0])
 
     # Set seed to experiment_params.seed
     np.random.seed(experiment_params.seed)
@@ -129,6 +120,9 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
     clean_target_pattern = dummyloader.get_full_pattern(simulation_params.dt)
+    plt.show()
+
+    breakpoint()
 
     if neptune_run:
         neptune_run["pattern"].upload(fig)
