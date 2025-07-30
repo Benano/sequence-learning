@@ -2,15 +2,18 @@
 
 import numpy as np
 from tqdm import tqdm
+from utils import load_pattern_flexible
 
 from elise.config import FullConfig
-from elise.data import DiscreteDataloader
+from elise.data import DiscreteDataloader, MultiPatternDataloader
+from elise.data_transforms import CorrelatedNoise, WhiteNoise
 from elise.model import Network, eq_phi
 from elise.stats import compute_loss, mse
 from elise.tracker import Tracker
 
 
 def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
+    experiment_params = full_config.experiment_params
     neuron_params = full_config.neuron_params
     simulation_params = full_config.simulation_params
     track_params = full_config.tracking_params
@@ -19,8 +22,46 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
     network = Network.load(
         artifact_path / "network.pkl",
     )
-    dataloader = DiscreteDataloader.load(artifact_path / "dataloader.pkl")
-    dataloader.online_transforms = []
+
+    patterns = []
+    for pattern_name in experiment_params.patterns:
+        pattern_file = pattern_path / f"{pattern_name}.txt"
+        pattern = load_pattern_flexible(
+            pattern_file, simulation_params.pattern_duration, simulation_params.dt
+        )
+        patterns.append(pattern)
+
+    def to_biounits(x):
+        return neuron_params.E_l + x * 20.0
+
+    online_transforms = []
+    if simulation_params.noise_sigma > 0:
+        if simulation_params.noise_tau > 0:
+            online_transforms.append(
+                CorrelatedNoise(
+                    simulation_params.noise_sigma,
+                    simulation_params.noise_tau,
+                    simulation_params.dt,
+                )
+            )
+
+        else:
+            online_transforms.append(WhiteNoise(simulation_params.noise_sigma))
+
+    if len(patterns) > 1:
+        dataloader = MultiPatternDataloader(
+            patterns=patterns,
+            pre_transform=[to_biounits],
+            online_transform=online_transforms,
+        )
+        dummyloader = MultiPatternDataloader(patterns)
+    else:
+        dataloader = Dataloader(
+            patterns[0],
+            pre_transforms=[to_biounits],
+            online_transforms=online_transforms,
+        )
+        dummyloader = Dataloader(patterns[0])
 
     # Every track params sim_step
     dt = network.dt
@@ -70,6 +111,18 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
 
         if neptune_run:
             neptune_run["replay_loss_r"].append(mse_loss_r)
+
+        if isinstance(dataloader, MultiPatternDataloader):
+            widths = dataloader.widths
+            c_width = 0
+            for i in range(len(patterns)):
+                mse_loss_r = compute_loss(
+                    r_out[:, c_width : c_width + widths[i]],
+                    r_target[:, c_width : c_width + widths[i]],
+                    mse,
+                )
+                c_width += widths[i]
+                neptune_run[f"replay_loss_pat_{i}"].append(mse_loss_r)
 
         replay_loss_r.append(mse_loss_r)
         replay_loss_u.append(mse_loss_u)
