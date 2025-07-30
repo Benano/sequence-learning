@@ -75,6 +75,7 @@ class BasePattern(ABC):
             raise TypeError("dt/duration must be of type float")
 
         self.shape = self.pattern.shape
+        self.width = self.pattern.shape[-1]
 
     @abstractmethod
     def _convert(self, pattern: npt.NDArray) -> npt.NDArray:
@@ -149,17 +150,6 @@ class Pattern(BasePattern):
         return pattern
 
 
-class Pattern2:
-    """TODO: rewrite Pattern with properties:
-
-    - pattern should be a property
-    - and t_max also which is changed whenever pattern is changed
-    - compare also in terms of speed
-    """
-
-    pass
-
-
 def flatten(lst):
     for el in lst:
         if isinstance(el, list):
@@ -185,20 +175,11 @@ class OneHotPattern(BasePattern):
         :type dt: float
         """
 
-        self._width = np.max(pattern) + 1
-
-        # if len(pattern.shape) != 1:
-        #     raise ValueError("pattern must be one dimensional")
-        # if np.max(pattern) > width - 1:
-        #     raise ValueError(
-        #         "width must be greater then or equal to the maximum value in pattern"
-        #     )
-        # self._width = width
-        #
+        self.width = np.max(pattern) + 1
         super().__init__(pattern, dt)
 
     def _convert(self, pattern):
-        res = np.zeros((len(pattern), self._width))
+        res = np.zeros((len(pattern), self.width))
         for i, j in enumerate(pattern):
             res[i, j] = 1.0
         return res
@@ -228,14 +209,11 @@ class MultiHotPattern(BasePattern):
         duration: float,
     ) -> None:
         """DOCSTRING."""
-        # max in list:
-        max_val = -1000000
-
-        self._width = max(flatten_nested_tuples(pattern)) + 1
+        self.width = max(flatten_nested_tuples(pattern)) + 1
         super().__init__(pattern, duration=duration)
 
     def _convert(self, pattern):
-        res = np.zeros((len(pattern), self._width))
+        res = np.zeros((len(pattern), self.width))
         for i, pat in enumerate(pattern):
             if isinstance(pat, int) and pat == -1:
                 continue
@@ -268,6 +246,7 @@ class CirclePattern(BaseContinuousPattern):
         self.center_x = center_x
         self.center_y = center_y
         self._period = period
+        self.width = 2
 
     @property
     def duration(self):
@@ -300,6 +279,7 @@ class LorenzAttractor:
         self.z = z0
         self.last_t = t0
         self._duration = duration
+        self.width = 3
 
     @property
     def duration(self):
@@ -398,7 +378,7 @@ class DiscreteDataloader(BaseDataloader):
         self.pattern = pattern
         self.duration = self.pattern.duration
         self.dt = self.pattern.dt
-
+        self.width = self.pattern.width
         self.online_transforms = online_transforms
 
         # apply pre-transforms directly once
@@ -501,7 +481,7 @@ class ContinuousDataloader(BaseDataloader):
     ):
         self.pattern = pattern
         self.duration = self.pattern.duration
-
+        self.width = pattern.width
         self.pre_transforms = pre_transforms
         self.online_transforms = online_transforms
 
@@ -631,7 +611,7 @@ class MultiPatternDataloader(BaseDataloader):
             dl = Dataloader(pattern, pre_transform, online_transform)
             self.dataloaders.append(dl)
             self.durations.append(dl.duration)
-            self.width += pattern.shape[-1]
+            self.width += dl.width
 
         self.duration = np.max(self.durations)
 
