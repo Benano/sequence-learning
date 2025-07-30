@@ -606,11 +606,13 @@ class MultiPatternDataloader(BaseDataloader):
         self.dataloaders = []
         self.durations = []
         self.width = 0
+        self.widths = []
 
         for pattern in patterns:
             dl = Dataloader(pattern, pre_transform, online_transform)
             self.dataloaders.append(dl)
             self.durations.append(dl.duration)
+            self.widths.append(dl.width)
             self.width += dl.width
 
         self.duration = np.max(self.durations)
@@ -625,8 +627,26 @@ class MultiPatternDataloader(BaseDataloader):
             yield t, self.__call__(t)
             t += dt
 
-    def get_full_pattern(self, dt: float):
-        return np.array([pattern for _, pattern in self.iter(0, self.duration, dt)])
+    def get_individual_patterns(self, dt: float):
+        """
+        Get individual patterns as a list of numpy arrays.
+
+        :param dt: Time step for sampling the patterns.
+        :type dt: float
+        :return: List of individual patterns as numpy arrays.
+        :rtype: List[npt.NDArray]
+        """
+        return [dl.get_full_pattern(dt) for dl in self.dataloaders]
+
+    def get_full_pattern(self, dt: float, concat=True):
+        if concat:
+            full_pattern = np.array(
+                [pattern for _, pattern in self.iter(0, self.duration, dt)]
+            )
+        else:
+            full_pattern = [dl.get_full_pattern(dt) for dl in self.dataloaders]
+
+        return full_pattern
 
     def save(self, path: str):
         with open(path, "wb") as f:

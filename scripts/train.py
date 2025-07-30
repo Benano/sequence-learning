@@ -140,7 +140,6 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     optimizer_vis = optimizer(eta_vis)
     network.prepare_for_simulation(dt, optimizer_vis, optimizer_lat)
 
-    # Every track params sim_step
     u_target = dummyloader.get_full_pattern(dt)[:: track_params.sim_step]
     r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
 
@@ -156,6 +155,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     validation_loss_r = []
 
     c_t = 0.0
+
     for epoch in tqdm(range(simulation_params.training_epochs)):
         for t in np.arange(0, training_duration, simulation_params.dt):
             network(u_inp=dataloader(t))
@@ -181,6 +181,20 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
             mse_loss_u = compute_loss(u_out, u_target, mse)
             mse_loss_r = compute_loss(r_out, r_target, mse)
+
+            if isinstance(dataloader, MultiPatternDataloader):
+                widths = dataloader.widths
+                c_width = 0
+                for i in range(len(patterns)):
+                    mse_loss_r = compute_loss(
+                        r_out[:, c_width : c_width + widths[i]],
+                        r_target[:, c_width : c_width + widths[i]],
+                        mse,
+                    )
+                    c_width += widths[i]
+                    neptune_run[f"validation_loss_pat_{i}"].append(mse_loss_r)
+            else:
+                pass
 
             if neptune_run:
                 neptune_run["validation_loss_r"].append(mse_loss_r)
