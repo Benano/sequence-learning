@@ -29,7 +29,9 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     for pattern_name in experiment_params.patterns:
         pattern_file = pattern_path / f"{pattern_name}.txt"
         pattern = load_pattern_flexible(
-            pattern_file, simulation_params.pattern_duration, simulation_params.dt
+            pattern_file,
+            simulation_params.pattern_duration,
+            simulation_params.pattern_dt,
         )
         patterns.append(pattern)
 
