@@ -86,6 +86,16 @@ class Tracker:
         """
         self.track_dict[value_name].append(val)
 
+    def save_dict(self, path: str) -> None:
+        """
+        Save the tracker dictionary to a file.
+
+        :param path: File path to save the tracker dictionary.
+        :type path: str
+        """
+        with open(path, "wb") as f:
+            pickle.dump(self.track_dict, f)
+
     def save(self, path: str) -> None:
         """
         Save the tracker object to a file.
