@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
+from collections import defaultdict
+
 import numpy as np
 from tqdm import tqdm
 from utils import load_pattern_flexible
 
 from elise.config import FullConfig
-from elise.data import DiscreteDataloader, MultiPatternDataloader
+from elise.data import Dataloader, MultiPatternDataloader
 from elise.data_transforms import CorrelatedNoise, WhiteNoise
 from elise.model import Network, eq_phi
 from elise.stats import compute_loss, mse
@@ -65,33 +67,28 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
 
     # Every track params sim_step
     dt = network.dt
-    u_target = dataloader.get_full_pattern(dt)[:: track_params.sim_step]
+    u_target = dummyloader.get_full_pattern(dt)[:: track_params.sim_step]
     r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
 
-    replay_duration = simulation_params.replay_cycles * dataloader.duration
+    experiment_duration = simulation_params.experiment_cycles * dataloader.duration
 
-    replay_tracker = Tracker(track_params.vars_replay, track_params.sim_step)
-
-    # replay
-    replay_loss_u = []
-    replay_loss_r = []
-
-    # replay
-    replay_loss_u = []
-    replay_loss_r = []
+    experiment_tracker = Tracker(track_params.vars_experiment, track_params.sim_step)
 
     first = 25
-    partial_replay = False
-    if partial_replay:
+    partial_experiment = False
+    if partial_experiment:
         network.reset_activity()
+
+    # Create dictionary to store losses that uses list as value
+    losses = defaultdict(list)
 
     import copy
 
-    for epoch in tqdm(range(simulation_params.replay_epochs)):
-        for t in np.arange(0, replay_duration, simulation_params.dt):
+    for epoch in tqdm(range(simulation_params.experiment_epochs)):
+        for t in np.arange(0, experiment_duration, simulation_params.dt):
             # only the first 32 rows
 
-            if partial_replay:
+            if partial_experiment:
                 u_inp = copy.deepcopy(network.get_val("u", "visible"))
                 u_tar = dataloader(t)[:first]
                 u_inp[:first] = u_tar
@@ -101,10 +98,10 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
             else:
                 network(u_inp=None, learn=False)
 
-            replay_tracker.track(network, t)
+            experiment_tracker.track(network, t)
 
-        u_out = np.array(replay_tracker["u_visible"])[-2 * len(u_target) :]
-        r_out = np.array(replay_tracker["r_visible"])[-2 * len(u_target) :]
+        u_out = np.array(experiment_tracker["u_visible"])[-2 * len(u_target) :]
+        r_out = np.array(experiment_tracker["r_visible"])[-2 * len(u_target) :]
 
         mse_loss_u = compute_loss(u_out, u_target, mse)
         mse_loss_r = compute_loss(r_out, r_target, mse)
@@ -122,16 +119,16 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
                     mse,
                 )
                 c_width += widths[i]
-                neptune_run[f"replay_loss_pat_{i}"].append(mse_loss_r)
+                neptune_run[f"experiment_loss_pat_{i}"].append(mse_loss_r)
+                losses[f"experiment_loss_pat_{i}"].append(mse_loss_r)
 
-        replay_loss_r.append(mse_loss_r)
-        replay_loss_u.append(mse_loss_u)
+        losses["experiment_loss_r"].append(mse_loss_r)
+        losses["experiment_loss_u"].append(mse_loss_u)
 
-    replay_tracker.store("r_target", r_target)
-    replay_tracker.store("mse_loss_r", replay_loss_r)
-    replay_tracker.store("mse_loss_u", replay_loss_u)
+    experiment_tracker.store("losses", losses)
+    experiment_tracker.store("r_target", r_target)
 
-    return replay_tracker
+    return experiment_tracker
 
 
 if __name__ == "__main__":

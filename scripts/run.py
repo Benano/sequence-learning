@@ -114,13 +114,14 @@ def main(seed, saving):
     # Import your main function (assuming it's in the same directory as run.py)
     from train import main as train_main
 
-    network, dataloader, train_tracker, validation_tracker = train_main(
+    network, dataloader, train_tracker, validation_tracker, replay_tracker = train_main(
         full_config, run_path, artifact_path, pattern_path, neptune_run, rng
     )
 
     network.save(artifact_path / "network.pkl")
     validation_tracker.save(artifact_path / "validation_tracker.pkl")
     train_tracker.save(artifact_path / "train_tracker.pkl")
+    replay_tracker.save(artifact_path / "replay_tracker.pkl")
     dataloader.save(artifact_path / "dataloader.pkl")
 
     if saving:
@@ -129,18 +130,20 @@ def main(seed, saving):
         neptune_run["validation_tracker"].upload(
             str(artifact_path / "validation_tracker.pkl")
         )
+        neptune_run["replay_tracker"].upload(str(artifact_path / "replay_tracker.pkl"))
         neptune_run["dataloader"].upload(str(artifact_path / "dataloader.pkl"))
         neptune_run["sys/tags"].add("full_save")
 
     from experiment import main as experiment_main
 
-    replay_tracker = experiment_main(
+    experiment_tracker = experiment_main(
         full_config, run_path, artifact_path, pattern_path, neptune_run
     )
-    replay_tracker.save(str(artifact_path / "replay_tracker.pkl"))
+    experiment_tracker.save(str(artifact_path / "experiment_tracker.pkl"))
 
     if saving:
-        neptune_run["replay_tracker"].upload(str(artifact_path / "replay_tracker.pkl"))
+        save_loc = str(artifact_path / "experiment_tracker.pkl")
+        neptune_run["experiment_tracker"].upload(save_loc)
 
     from plotting import main as plotting_main
 

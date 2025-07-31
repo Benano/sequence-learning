@@ -1,4 +1,6 @@
-import ast
+# import ast
+import copy
+from collections import defaultdict
 
 import neptune
 import numpy as np
@@ -75,7 +77,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     ax.set_title("Input Pattern")
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
-    clean_target_pattern = dummyloader.get_full_pattern(simulation_params.dt)
+    # clean_target_pattern = dummyloader.get_full_pattern(simulation_params.dt)
 
     if neptune_run:
         neptune_run["pattern"].upload(fig)
@@ -104,23 +106,22 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     # Sim params
     training_duration = simulation_params.training_cycles * dataloader.duration
     validation_duration = simulation_params.validation_cycles * dataloader.duration
+    replay_duration = simulation_params.replay_cycles * dataloader.duration
 
     # Sim Trackers
     train_tracker = Tracker(track_params.vars_train, track_params.sim_step)
     validation_tracker = Tracker(track_params.vars_val, track_params.sim_step)
-
-    validation_loss_u = []
-    validation_loss_r = []
+    replay_tracker = Tracker(track_params.vars_replay, track_params.sim_step)
 
     c_t = 0.0
-
+    losses = defaultdict(list)
     for epoch in tqdm(range(simulation_params.training_epochs)):
         for t in np.arange(0, training_duration, simulation_params.dt):
             network(u_inp=dataloader(t))
 
-            # Only track the last two epochs
+            # Only last epoch
             c_t = c_t + simulation_params.dt
-            if epoch >= simulation_params.training_epochs - 2:
+            if epoch >= simulation_params.training_epochs - 1:
                 train_tracker.track(network, c_t)
 
         # Add learning rate decay
@@ -151,21 +152,75 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
                     )
                     c_width += widths[i]
                     neptune_run[f"validation_loss_pat_{i}"].append(mse_loss_r)
+                    losses[f"validation_loss_pat_{i}"].append(mse_loss_r)
             else:
                 pass
 
             if neptune_run:
                 neptune_run["validation_loss_r"].append(mse_loss_r)
 
-            validation_loss_r.append(mse_loss_r)
-            validation_loss_u.append(mse_loss_u)
+            losses["validation_loss_r"].append(mse_loss_r)
+            losses["validation_loss_u"].append(mse_loss_u)
 
     train_tracker.store("r_target", r_target)
     validation_tracker.store("r_target", r_target)
-    validation_tracker.store("mse_loss_r", validation_loss_r)
-    validation_tracker.store("mse_loss_u", validation_loss_u)
+    validation_tracker.store("losses", losses)
 
-    return network, dataloader, train_tracker, validation_tracker
+    first = 25
+    partial_replay = False
+    if partial_replay:
+        network.reset_activity()
+
+    # Create dictionary to store losses that uses list as value
+    losses = defaultdict(list)
+
+    replay_network = copy.deepcopy(network)
+
+    for epoch in tqdm(range(simulation_params.replay_epochs)):
+        for t in np.arange(0, replay_duration, simulation_params.dt):
+            # only the first 32 rows
+
+            if partial_replay:
+                u_inp = copy.deepcopy(replay_network.get_val("u", "visible"))
+                u_tar = dataloader(t)[:first]
+                u_inp[:first] = u_tar
+
+                replay_network(u_inp=u_inp, learn=False)
+
+            else:
+                replay_network(u_inp=None, learn=False)
+
+            replay_tracker.track(replay_network, t)
+
+        u_out = np.array(replay_tracker["u_visible"])[-2 * len(u_target) :]
+        r_out = np.array(replay_tracker["r_visible"])[-2 * len(u_target) :]
+
+        mse_loss_u = compute_loss(u_out, u_target, mse)
+        mse_loss_r = compute_loss(r_out, r_target, mse)
+
+        if neptune_run:
+            neptune_run["replay_loss_r"].append(mse_loss_r)
+
+        if isinstance(dataloader, MultiPatternDataloader):
+            widths = dataloader.widths
+            c_width = 0
+            for i in range(len(patterns)):
+                mse_loss_r = compute_loss(
+                    r_out[:, c_width : c_width + widths[i]],
+                    r_target[:, c_width : c_width + widths[i]],
+                    mse,
+                )
+                c_width += widths[i]
+                neptune_run[f"replay_loss_pat_{i}"].append(mse_loss_r)
+                losses[f"replay_loss_pat_{i}"].append(mse_loss_r)
+
+        losses["replay_loss_r"].append(mse_loss_r)
+        losses["replay_loss_u"].append(mse_loss_u)
+
+    replay_tracker.store("losses", losses)
+    replay_tracker.store("r_target", r_target)
+
+    return network, dataloader, train_tracker, validation_tracker, replay_tracker
 
 
 if __name__ == "__main__":
