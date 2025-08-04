@@ -38,11 +38,11 @@ def get_neptune_losses(tag):
 if __name__ == "__main__":
     from pathlib import Path
 
-    for i in np.arange(8):
-        tag_name = f"Prelude{i + 1}"
-
+    for i in np.arange(1):
+        tag_name = "final_mult_test"
+        fname = "mult_pats"
         save_loc = Path(
-            f"/Users/benano/Documents/org/manuscripts/SequenceLearningPaper/data/preludes/{tag_name}/"
+            f"/Users/benano/Documents/org/manuscripts/SequenceLearningPaper/data/{fname}"
         )
         save_loc.mkdir(parents=True, exist_ok=True)
         # save_loc = Path("/Users/benano/Documents/testing_cluster")
@@ -62,7 +62,13 @@ if __name__ == "__main__":
         np.save(save_loc_validation, validation_losses)
 
         c_run["network"].download(destination=str(save_loc / "network.pkl"))
+        c_run["dataloader"].download(destination=str(save_loc / "dataloader.pkl"))
         c_run["train_tracker"].download(destination=str(save_loc / "train_tracker.pkl"))
         c_run["replay_tracker"].download(
             destination=str(save_loc / "replay_tracker.pkl")
         )
+        c_run["train_dict"].download(destination=str(save_loc / "train_dict.pkl"))
+        c_run["validation_dict"].download(
+            destination=str(save_loc / "validation_dict.pkl")
+        )
+        c_run["replay_dict"].download(destination=str(save_loc / "replay_dict.pkl"))

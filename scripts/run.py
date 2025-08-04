@@ -119,31 +119,42 @@ def main(seed, saving):
     )
 
     network.save(artifact_path / "network.pkl")
+    dataloader.save(artifact_path / "dataloader.pkl")
     validation_tracker.save(artifact_path / "validation_tracker.pkl")
     train_tracker.save(artifact_path / "train_tracker.pkl")
     replay_tracker.save(artifact_path / "replay_tracker.pkl")
-    dataloader.save(artifact_path / "dataloader.pkl")
 
     if saving:
+        validation_tracker.save_dict(artifact_path / "validation_dict.pkl")
+        train_tracker.save_dict(artifact_path / "train_dict.pkl")
+        replay_tracker.save_dict(artifact_path / "replay_dict.pkl")
+
         neptune_run["network"].upload(str(artifact_path / "network.pkl"))
+
         neptune_run["train_tracker"].upload(str(artifact_path / "train_tracker.pkl"))
         neptune_run["validation_tracker"].upload(
             str(artifact_path / "validation_tracker.pkl")
         )
         neptune_run["replay_tracker"].upload(str(artifact_path / "replay_tracker.pkl"))
+
+        neptune_run["replay_dict"].upload(str(artifact_path / "replay_dict.pkl"))
+        neptune_run["train_dict"].upload(str(artifact_path / "train_dict.pkl"))
+        neptune_run["validation_dict"].upload(
+            str(artifact_path / "validation_dict.pkl")
+        )
+
         neptune_run["dataloader"].upload(str(artifact_path / "dataloader.pkl"))
         neptune_run["sys/tags"].add("full_save")
 
-    from experiment import main as experiment_main
+    # from experiment import main as experiment_main
+    # experiment_tracker = experiment_main(
+    #     full_config, run_path, artifact_path, pattern_path, neptune_run
+    # )
+    # experiment_tracker.save(str(artifact_path / "experiment_tracker.pkl"))
 
-    experiment_tracker = experiment_main(
-        full_config, run_path, artifact_path, pattern_path, neptune_run
-    )
-    experiment_tracker.save(str(artifact_path / "experiment_tracker.pkl"))
-
-    if saving:
-        save_loc = str(artifact_path / "experiment_tracker.pkl")
-        neptune_run["experiment_tracker"].upload(save_loc)
+    # if saving:
+    #     save_loc = str(artifact_path / "experiment_tracker.pkl")
+    #     neptune_run["experiment_tracker"].upload(save_loc)
 
     from plotting import main as plotting_main
 
