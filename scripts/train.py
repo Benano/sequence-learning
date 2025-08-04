@@ -168,8 +168,12 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     validation_tracker.store("r_target", r_target)
     validation_tracker.store("losses", losses)
 
-    first = 25
-    partial_replay = False
+    if isinstance(dataloader, MultiPatternDataloader):
+        first = dataloader.widths[0]
+    else:
+        first = 10
+
+    partial_replay = True
     if partial_replay:
         network.reset_activity()
 
