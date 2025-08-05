@@ -37,7 +37,6 @@ def create_run_folder(config_path, pattern_name, seed, runs_dir="runs"):
         f"{today}_{pattern_name}_{seed}_{config_hash[:8]}"  # Short hash for readability
     )
     run_path = ensure_runs_dir(runs_dir) / run_folder_name
-    run_path.mkdir(exist_ok=True)
 
     return run_path
 
@@ -63,8 +62,8 @@ def main(seed, saving):
     rng = np.random.default_rng(seed)
     experiment_params.seed = seed
 
-    runs_dir = "runs"
-    run_path = create_run_folder(config_path, pattern_name, seed, runs_dir)
+    run_path = Path("runs/temp").resolve()
+    run_path.mkdir(exist_ok=True)
 
     # Create directories for artifacts, figures, and patterns
     artifact_path = run_path / "artifacts"
@@ -92,6 +91,7 @@ def main(seed, saving):
         tags=[pattern_name],
     )
     neptune_run["sys/group_tags"].add(experiment_params.group_tag)
+    neptune_run["parameters/seed"] = seed
 
     run_id = neptune_run["sys/id"].fetch()
     print(f"Run ID: {run_id}")  # Print the run ID for reference
