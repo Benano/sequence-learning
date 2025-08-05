@@ -105,6 +105,9 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     u_target = dummyloader.get_full_pattern(dt)[:: track_params.sim_step]
     r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
 
+    noisy_u_target = dataloader.get_full_pattern(dt)[:: track_params.sim_step]
+    noisy_r_target = eq_phi(noisy_u_target, neuron_params.a, neuron_params.b)
+
     # Sim params
     training_duration = simulation_params.training_cycles * dataloader.duration
     validation_duration = simulation_params.validation_cycles * dataloader.duration
@@ -166,6 +169,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
     train_tracker.store("r_target", r_target)
     validation_tracker.store("r_target", r_target)
+    validation_tracker.store("noisy_r_target", noisy_r_target)
     validation_tracker.store("losses", losses)
 
     if isinstance(dataloader, MultiPatternDataloader):
@@ -184,7 +188,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
     for epoch in tqdm(range(simulation_params.replay_epochs)):
         for t in np.arange(0, replay_duration, simulation_params.dt):
-            if partial_replay and epoch <= 1:
+            if partial_replay and epoch == 1:
                 u_inp = copy.deepcopy(replay_network.get_val("u", "visible"))
                 u_tar = dataloader(t)[:first]
                 u_inp[:first] = u_tar
