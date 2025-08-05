@@ -184,9 +184,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
     for epoch in tqdm(range(simulation_params.replay_epochs)):
         for t in np.arange(0, replay_duration, simulation_params.dt):
-            # only the first 32 rows
-
-            if partial_replay:
+            if partial_replay and epoch <= 1:
                 u_inp = copy.deepcopy(replay_network.get_val("u", "visible"))
                 u_tar = dataloader(t)[:first]
                 u_inp[:first] = u_tar
