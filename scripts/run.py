@@ -62,7 +62,8 @@ def main(seed, saving):
     rng = np.random.default_rng(seed)
     experiment_params.seed = seed
 
-    run_path = Path("runs/temp").resolve()
+    run_path = create_run_folder(config_path, pattern_name, seed, runs_dir="runs")
+    # run_path = Path("runs/temp").resolve()
     run_path.mkdir(exist_ok=True)
 
     # Create directories for artifacts, figures, and patterns
@@ -136,7 +137,6 @@ def main(seed, saving):
             str(artifact_path / "validation_tracker.pkl")
         )
         neptune_run["replay_tracker"].upload(str(artifact_path / "replay_tracker.pkl"))
-
         neptune_run["replay_dict"].upload(str(artifact_path / "replay_dict.pkl"))
         neptune_run["train_dict"].upload(str(artifact_path / "train_dict.pkl"))
         neptune_run["validation_dict"].upload(
