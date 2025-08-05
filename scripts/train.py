@@ -177,8 +177,9 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     else:
         first = 10
 
-    partial_replay = True
-    if partial_replay:
+    replay_params = full_config.replay_params
+
+    if replay_params.partial_replay:
         network.reset_activity()
 
     # Create dictionary to store losses that uses list as value
@@ -188,15 +189,15 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
     for epoch in tqdm(range(simulation_params.replay_epochs)):
         for t in np.arange(0, replay_duration, simulation_params.dt):
-            if partial_replay and epoch == 1:
+            if replay_params.partial_replay and epoch == 1:
                 u_inp = copy.deepcopy(replay_network.get_val("u", "visible"))
                 u_tar = dataloader(t)[:first]
                 u_inp[:first] = u_tar
 
-                replay_network(u_inp=u_inp, learn=False)
+                replay_network(u_inp=u_inp, learn=replay_params.replay_learning)
 
             else:
-                replay_network(u_inp=None, learn=False)
+                replay_network(u_inp=None, learn=replay_params.replay_learning)
 
             replay_tracker.track(replay_network, t)
 

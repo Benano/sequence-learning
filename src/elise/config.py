@@ -51,6 +51,12 @@ class SimulationConfig:
 
 
 @dataclass(slots=True)
+class ReplayConfig:
+    partial_replay: bool = False
+    replay_learning: bool = False
+
+
+@dataclass(slots=True)
 class NeuronConfig:
     C_v: float = 1.0
     C_u: float = 1.0
@@ -115,6 +121,9 @@ class FullConfig:
         )
         self.weight_params = self._create_config(
             WeightConfig, config.get_section("weight_params")
+        )
+        self.replay_params = self._create_config(
+            ReplayConfig, config.get_section("simulation_params")
         )
         self.simulation_params = self._create_config(
             SimulationConfig, config.get_section("simulation_params")

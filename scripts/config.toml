@@ -35,6 +35,10 @@ eta_decay = 0.98
 noise_sigma = 2
 noise_tau = 100
 
+[replay_params]
+partial_replay = 0
+replay_learning = 0
+
 [neuron_params]
 C_v = 1.0
 C_u = 1.0
