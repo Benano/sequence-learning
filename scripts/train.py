@@ -38,6 +38,9 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     def to_biounits(x):
         return neuron_params.E_l + x * 20.0
 
+    def harder_softer(x):
+        return x * np.random.uniform(0.5, 2, x.shape)
+
     online_transforms = []
     if simulation_params.noise_sigma > 0:
         if simulation_params.noise_tau > 0:
@@ -52,17 +55,18 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         else:
             online_transforms.append(WhiteNoise(simulation_params.noise_sigma))
 
+    pre_transforms = [harder_softer, to_biounits]
     if len(patterns) > 1:
         dataloader = MultiPatternDataloader(
             patterns=patterns,
-            pre_transform=[to_biounits],
-            online_transform=online_transforms,
+            pre_transform=[harder_softer, to_biounits],
+            online_transform=pre_transforms,
         )
         dummyloader = MultiPatternDataloader(patterns)
     else:
         dataloader = Dataloader(
             patterns[0],
-            pre_transforms=[to_biounits],
+            pre_transforms=pre_transforms,
             online_transforms=online_transforms,
         )
         dummyloader = Dataloader(patterns[0])
