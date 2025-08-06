@@ -380,6 +380,7 @@ class DiscreteDataloader(BaseDataloader):
         self.dt = self.pattern.dt
         self.width = self.pattern.width
         self.online_transforms = online_transforms
+        self.apply_online_transforms = 1
 
         # apply pre-transforms directly once
         for transform in pre_transforms:
@@ -416,7 +417,8 @@ class DiscreteDataloader(BaseDataloader):
         idx = self._time_to_idx(t + offset)
         pattern_t = self.pattern[idx]
 
-        pattern_t = self._apply_online_transforms(pattern_t)
+        if self.apply_online_transforms:
+            pattern_t = self._apply_online_transforms(pattern_t)
 
         return pattern_t
 
@@ -442,7 +444,7 @@ class DiscreteDataloader(BaseDataloader):
             yield t, self.__call__(t, offset=dt * 0.01)
             t += dt
 
-    def get_full_pattern(self, dt):
+    def get_full_pattern(self, dt, online_transforms=True):
         """Return the full pattern."""
         """
         :param dt: Simulation time step
@@ -451,9 +453,14 @@ class DiscreteDataloader(BaseDataloader):
         :rtype: npt.NDArray
         """
 
+        if not online_transforms:
+            self.apply_online_transforms = 0
+
         full_pattern = []
         for _, pattern in self.iter(0, self.duration, dt):
             full_pattern.append(pattern)
+
+        self.apply_online_transforms = 1  # reset to default
 
         return np.array(full_pattern)
 
@@ -484,6 +491,7 @@ class ContinuousDataloader(BaseDataloader):
         self.width = pattern.width
         self.pre_transforms = pre_transforms
         self.online_transforms = online_transforms
+        self.apply_online_transforms = 1
 
     @staticmethod
     def _apply_transforms(transforms: Callable, pattern: npt.NDArray) -> npt.NDArray:

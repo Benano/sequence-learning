@@ -39,7 +39,31 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         return neuron_params.E_l + x * 20.0
 
     def harder_softer(x):
-        return x * np.random.uniform(0.5, 2, x.shape)
+        return x * np.random.uniform(0.3, 1, x.shape)
+
+    def color_notes(arr, val_min=0.5, val_max=1.0):
+        arr = arr.astype(np.int32)
+        # Create a new float array for the output
+        mapped = np.zeros_like(arr, dtype=np.float32)
+
+        # For each note (column):
+        for note_idx in range(arr.shape[1]):
+            row = arr[:, note_idx]
+            in_note = False
+            start = 0
+            for i, v in enumerate(
+                np.append(row, 0)
+            ):  # append a zero to capture trailing notes
+                if v == 1 and not in_note:
+                    in_note = True
+                    start = i
+                elif v == 0 and in_note:
+                    in_note = False
+                    note_length = i - start
+                    value = np.random.uniform(val_min, val_max)
+                    mapped[start : start + note_length, note_idx] = value
+
+        return mapped
 
     online_transforms = []
     if simulation_params.noise_sigma > 0:
@@ -55,21 +79,20 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         else:
             online_transforms.append(WhiteNoise(simulation_params.noise_sigma))
 
-    pre_transforms = [harder_softer, to_biounits]
+    pre_transforms = [color_notes, to_biounits]
+
     if len(patterns) > 1:
         dataloader = MultiPatternDataloader(
             patterns=patterns,
-            pre_transform=[harder_softer, to_biounits],
-            online_transform=pre_transforms,
+            pre_transform=pre_transforms,
+            online_transform=online_transforms,
         )
-        dummyloader = MultiPatternDataloader(patterns)
     else:
         dataloader = Dataloader(
             patterns[0],
             pre_transforms=pre_transforms,
             online_transforms=online_transforms,
         )
-        dummyloader = Dataloader(patterns[0])
 
     # Set seed to experiment_params.seed
     np.random.seed(experiment_params.seed)
@@ -83,7 +106,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     ax.set_title("Input Pattern")
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
-    # clean_target_pattern = dummyloader.get_full_pattern(simulation_params.dt)
+    plt.show()
 
     if neptune_run:
         neptune_run["pattern"].upload(fig)
@@ -106,11 +129,10 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     optimizer_vis = optimizer(eta_vis)
     network.prepare_for_simulation(dt, optimizer_vis, optimizer_lat)
 
-    u_target = dummyloader.get_full_pattern(dt)[:: track_params.sim_step]
+    u_target = dataloader.get_full_pattern(dt, online_transforms=False)[
+        :: track_params.sim_step
+    ]
     r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
-
-    noisy_u_target = dataloader.get_full_pattern(dt)[:: track_params.sim_step]
-    noisy_r_target = eq_phi(noisy_u_target, neuron_params.a, neuron_params.b)
 
     # Sim params
     training_duration = simulation_params.training_cycles * dataloader.duration
@@ -173,7 +195,6 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
     train_tracker.store("r_target", r_target)
     validation_tracker.store("r_target", r_target)
-    validation_tracker.store("noisy_r_target", noisy_r_target)
     validation_tracker.store("losses", losses)
 
     if isinstance(dataloader, MultiPatternDataloader):
