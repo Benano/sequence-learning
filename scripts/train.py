@@ -7,8 +7,8 @@ import numpy as np
 from tqdm import tqdm
 from utils import load_pattern_flexible
 
-from elise.data import Dataloader, MultiPatternDataloader
-from elise.data_transforms import CorrelatedNoise, WhiteNoise
+from elise.data import Dataloader, MultiPatternDataloader, RandomPattern
+from elise.data_transforms import ColorNotes, CorrelatedNoise, WhiteNoise
 from elise.model import Network, eq_phi  # noqa
 from elise.optimizer import SimpleUpdater
 from elise.rate_buffer import Buffer
@@ -27,13 +27,24 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
     patterns = []
     for pattern_name in experiment_params.patterns:
-        pattern_file = pattern_path / f"{pattern_name}.txt"
-        pattern = load_pattern_flexible(
-            pattern_file,
-            simulation_params.pattern_duration,
-            simulation_params.pattern_dt,
-        )
-        patterns.append(pattern)
+        if pattern_name == "random":
+            pattern_rng = copy.deepcopy(rng)
+            pattern = RandomPattern(
+                width=network_params.num_vis,
+                duration=simulation_params.pattern_duration,
+                rng=pattern_rng,
+                dt=simulation_params.dt,
+            )
+            patterns.append(pattern)
+
+        else:
+            pattern_file = pattern_path / f"{pattern_name}.txt"
+            pattern = load_pattern_flexible(
+                pattern_file,
+                simulation_params.pattern_duration,
+                simulation_params.pattern_dt,
+            )
+            patterns.append(pattern)
 
     def to_biounits(x):
         return neuron_params.E_l + x * 20.0
@@ -41,29 +52,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     def harder_softer(x):
         return x * np.random.uniform(0.3, 1, x.shape)
 
-    def color_notes(arr, val_min=0.5, val_max=1.0):
-        arr = arr.astype(np.int32)
-        # Create a new float array for the output
-        mapped = np.zeros_like(arr, dtype=np.float32)
-
-        # For each note (column):
-        for note_idx in range(arr.shape[1]):
-            row = arr[:, note_idx]
-            in_note = False
-            start = 0
-            for i, v in enumerate(
-                np.append(row, 0)
-            ):  # append a zero to capture trailing notes
-                if v == 1 and not in_note:
-                    in_note = True
-                    start = i
-                elif v == 0 and in_note:
-                    in_note = False
-                    note_length = i - start
-                    value = np.random.uniform(val_min, val_max)
-                    mapped[start : start + note_length, note_idx] = value
-
-        return mapped
+    color_notes = ColorNotes()
 
     online_transforms = []
     if simulation_params.noise_sigma > 0:
@@ -106,6 +95,8 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     ax.set_title("Input Pattern")
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
+
+    # show
     plt.show()
 
     if neptune_run:
