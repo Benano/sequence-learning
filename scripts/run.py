@@ -81,9 +81,14 @@ def main(seed, saving):
     shutil.copy("config.toml", run_path)
     pattern_folder = Path("patterns").resolve()
 
-    for pattern in experiment_params.patterns:
-        p_file = pattern_folder / (pattern + ".txt")
-        shutil.copy(p_file, pattern_path)
+    try:
+        for pattern in experiment_params.patterns:
+            p_file = pattern_folder / (pattern + ".txt")
+            shutil.copy(p_file, pattern_path)
+    except:
+        print(
+            f"Pattern files not found in {pattern_folder}. Skipping copying patterns."
+        )
 
     neptune_run = neptune.init_run(
         project="elise-neurotma/ELiSe",
@@ -159,6 +164,8 @@ def main(seed, saving):
     from plotting import main as plotting_main
 
     plotting_main(full_config, run_path, artifact_path, figure_path, neptune_run)
+
+    neptune_run.stop()
 
 
 if __name__ == "__main__":
