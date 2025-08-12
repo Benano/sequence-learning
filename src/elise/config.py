@@ -10,6 +10,7 @@ class ExperimentConfig:
     seed: int = 69
     patterns: list = field(default_factory=list)
     group_tag: str = "default_group"
+    pre_transforms: list = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -42,7 +43,6 @@ class SimulationConfig:
     training_cycles: int = 1000
     validation_cycles: int = 100
     replay_cycles: int = 100
-    validation_interval: int = 20
     eta_out: float = 10e-4
     eta_lat: float = 10e-3
     eta_decay: float = 0.95
