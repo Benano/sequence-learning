@@ -68,13 +68,13 @@ def plot_activity_in_time(train_output, replay_output, dt):
 
 
 def plot_activity_target_match(
-    train_output, val_output, replay_output, train_target, start_time, step
+    train_output, replay_output, train_target, start_time, step
 ):
     # Create a figure with two subplots, sharing the x-axis
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 4), sharex=True)
 
     # Concatenate train and val output
-    full_output = np.concatenate((train_output, val_output, replay_output), axis=1)
+    full_output = np.concatenate((train_output, replay_output), axis=1)
 
     # Determine overall min and max values
     vmin = min(np.min(full_output), np.min(train_target))
@@ -243,7 +243,7 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     sim_params = full_config.simulation_params
     track_params = full_config.tracking_params
 
-    pattern_duration = sim_params.pattern_duration
+    pattern_duration = sim_params.pattern_duration * sim_params.pattern_dt
     dt = sim_params.dt
     sim_step = track_params.sim_step
 
@@ -256,7 +256,6 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     first_replay = 1 * int(pattern_duration / dt / sim_step)
 
     train_output = train["u_visible"][-last_train:].T
-    val_output = val["u_visible"][-last_val:].T
     replay_output = replay["u_visible"][:first_replay].T
     train_target = train["u_inp_visible"][-last_train:].T
     dpi = 300
@@ -268,7 +267,7 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     step = sim_params.dt * track_params.sim_step
 
     fig = plot_activity_target_match(
-        train_output, val_output, replay_output, train_target, start_time, step
+        train_output, replay_output, train_target, start_time, step
     )
     save_fig(fig, "activity_match.png", figure_path, neptune_run, dpi)
 
@@ -291,7 +290,7 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     )
     step = sim_params.dt * track_params.sim_step
     fig = plot_activity_target_match(
-        train_output, val_output, replay_output, train_target, start_time, step
+        train_output, replay_output, train_target, start_time, step
     )
     save_fig(fig, "activity_match.png", figure_path, neptune_run, dpi)
 
