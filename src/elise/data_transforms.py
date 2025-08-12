@@ -2,7 +2,7 @@ import numpy as np
 
 
 class ColorNotes:
-    def __init__(self, val_min=0.5, val_max=1.5, n_palette=100):
+    def __init__(self, val_min=0.3, val_max=1.2, n_palette=100):
         self.val_min = val_min
         self.val_max = val_max
         self.n_palette = n_palette
@@ -15,16 +15,12 @@ class ColorNotes:
         :param arr: 2D numpy array where each column represents a note.
         :return: 2D numpy array with colored values.
         """
-        return self.color_notes(
-            arr, self.val_min, self.val_max, self.n_palette, self.rng
-        )
+        return self.color_notes(arr)
 
-    def color_notes(self, arr, val_min=0.5, val_max=1.5, n_palette=100, rng=None):
-        if rng is None:
-            rng = np.random.default_rng()
+    def color_notes(self, arr):
         arr = arr.astype(np.int32)
         colored = np.zeros_like(arr, dtype=np.float32)
-        palette = rng.uniform(val_min, val_max, n_palette)
+        palette = self.rng.uniform(self.val_min, self.val_max, self.n_palette)
         for note_idx in range(arr.shape[1]):
             row = arr[:, note_idx]
             in_note = False
@@ -37,7 +33,7 @@ class ColorNotes:
                     in_note = False
                     # Use hash of properties as index into palette
                     key = (note_idx, start, tuple(row[:start]))
-                    color_idx = abs(hash(key)) % n_palette
+                    color_idx = abs(hash(key)) % self.n_palette
                     value = palette[color_idx]
                     colored[start:i, note_idx] = value
 
