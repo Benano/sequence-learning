@@ -33,7 +33,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
                 width=network_params.num_vis,
                 duration=simulation_params.pattern_duration,
                 rng=pattern_rng,
-                dt=simulation_params.dt,
+                dt=simulation_params.pattern_dt,
             )
             patterns.append(pattern)
 
