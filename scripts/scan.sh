@@ -2,7 +2,7 @@
 #SBATCH --job-name="elise_array"
 #SBATCH --time=2:00:00
 #SBATCH --ntasks=10
-#SBATCH --array=0-7
+#SBATCH --array=0
 #SBATCH --ntasks-per-node=10
 #SBATCH --cpus-per-task=12
 #SBATCH --mem-per-cpu=2G
@@ -13,7 +13,7 @@ module load Anaconda3
 eval "$(conda shell.bash hook)"
 conda activate elise
 
-# NODE_ID=$SLURM_ARRAY_TASK_ID
+NODE_ID=$SLURM_ARRAY_TASK_ID
 NODE_ID=1
 
 param1='pattern_duration'
@@ -25,9 +25,6 @@ par2=${param_vals2[$NODE_ID]}
 
 for par1 in "${param_vals1[@]}"; do
 
-  SLURM_SUBMIT_DIR=$(pwd)
-  SLURM_JOB_ID=${par1}  # Use current timestamp as a unique job ID
-
   # Use a unique directory based on SLURM_JOB_ID
   WORKDIR="${SLURM_SUBMIT_DIR}/runs/${SLURM_JOB_ID}"
   mkdir -p "$WORKDIR"
@@ -35,6 +32,7 @@ for par1 in "${param_vals1[@]}"; do
   # Copy all necessary files to the new directory
   cp -r "$SLURM_SUBMIT_DIR/"*.py \
     "$SLURM_SUBMIT_DIR/config.toml" \
+    "$SLURM_SUBMIT_DIR/scan.sh" \
     "$SLURM_SUBMIT_DIR/patterns" \
     "$WORKDIR"
 
@@ -44,10 +42,11 @@ for par1 in "${param_vals1[@]}"; do
 
   echo "Running in directory: $WORKDIR"
   eval "cd $WORKDIR"
-  eval "python run.py --seed 42 $TASK_ID" &
+  eval "python run.py --seed 42 $TASK_ID" & # TODO ADD SEED HERE WHEN NEEDED
   eval "cd $SLURM_SUBMIT_DIR"
 
-  # rm -rf "$WORKDIR"  # Clean up the working directory after the job is done
+  rm -rf "$WORKDIR"  # Clean up the working directory after the job is done
+
 done
 
 wait

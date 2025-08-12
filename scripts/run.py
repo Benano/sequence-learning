@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import hashlib
-import shutil
 import tomllib as toml
 from datetime import datetime
 from pathlib import Path
@@ -61,10 +60,7 @@ def main(seed, saving):
     # Set the seed in the config
     rng = np.random.default_rng(seed)
     experiment_params.seed = seed
-
-    run_path = create_run_folder(config_path, pattern_name, seed, runs_dir="runs")
-    # run_path = Path("runs/temp").resolve()
-    run_path.mkdir(exist_ok=True)
+    run_path = Path.cwd()
 
     # Create directories for artifacts, figures, and patterns
     artifact_path = run_path / "artifacts"
@@ -72,23 +68,6 @@ def main(seed, saving):
     pattern_path = run_path / "patterns"
     artifact_path.mkdir(exist_ok=True)
     figure_path.mkdir(exist_ok=True)
-    pattern_path.mkdir(exist_ok=True)
-
-    # Copy necessary files to the run directory
-    shutil.copy("train.py", run_path)
-    shutil.copy("plotting.py", run_path)
-    shutil.copy("experiment.py", run_path)
-    shutil.copy("config.toml", run_path)
-    pattern_folder = Path("patterns").resolve()
-
-    try:
-        for pattern in experiment_params.patterns:
-            p_file = pattern_folder / (pattern + ".txt")
-            shutil.copy(p_file, pattern_path)
-    except:
-        print(
-            f"Pattern files not found in {pattern_folder}. Skipping copying patterns."
-        )
 
     neptune_run = neptune.init_run(
         project="elise-neurotma/ELiSe",
@@ -150,16 +129,6 @@ def main(seed, saving):
 
         neptune_run["dataloader"].upload(str(artifact_path / "dataloader.pkl"))
         neptune_run["sys/tags"].add("full_save")
-
-    # from experiment import main as experiment_main
-    # experiment_tracker = experiment_main(
-    #     full_config, run_path, artifact_path, pattern_path, neptune_run
-    # )
-    # experiment_tracker.save(str(artifact_path / "experiment_tracker.pkl"))
-
-    # if saving:
-    #     save_loc = str(artifact_path / "experiment_tracker.pkl")
-    #     neptune_run["experiment_tracker"].upload(save_loc)
 
     from plotting import main as plotting_main
 
