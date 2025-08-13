@@ -150,11 +150,11 @@ if __name__ == "__main__":
         "--seed", type=int, default=42, help="Random seed for NumPy RNG"
     )
     parser.add_argument(
-        "--param_tag", type=int, default="", help="Parameter tag for neptune"
+        "--param_tag", type=str, default="", help="Parameter tag for neptune"
     )
     parser.add_argument(
         "--saving", action="store_true", help="Flag for savingd artifacts"
     )
     args = parser.parse_args()
 
-    main(args.seed, args.parameter_tag, args.saving)
+    main(args.seed, args.param_tag, args.saving)
