@@ -52,7 +52,15 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     def harder_softer(x):
         return x * np.random.uniform(0.3, 1, x.shape)
 
-    color_notes = ColorNotes()
+    pre_transform_dict = {
+        "to_biounits": to_biounits,
+        "harder_softer": harder_softer,
+        "color": ColorNotes(),
+    }
+
+    pre_transforms = []
+    for transform in experiment_params.pre_transforms:
+        pre_transforms.append(pre_transform_dict[transform])
 
     online_transforms = []
     if simulation_params.noise_sigma > 0:
@@ -67,8 +75,6 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
         else:
             online_transforms.append(WhiteNoise(simulation_params.noise_sigma))
-
-    pre_transforms = [color_notes, to_biounits]
 
     if len(patterns) > 1:
         dataloader = MultiPatternDataloader(
@@ -95,9 +101,6 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     ax.set_title("Input Pattern")
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
-
-    # show
-    plt.show()
 
     if neptune_run:
         neptune_run["pattern"].upload(fig)
