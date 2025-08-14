@@ -8,6 +8,7 @@
 #SBATCH --mem-per-cpu=2G
 #SBATCH --partition=epyc2
 #SBATCH --array=0-63  # 8 param_vals1 x 8 param_vals2 = 64 parameter combos
+#SBATCH --output=slurm_logs/slurm-%A_A%a.out
 
 module load Anaconda3
 eval "$(conda shell.bash hook)"
@@ -40,7 +41,7 @@ par2=${param_vals2[$j]}
 # Loop over seeds serially
 # --------------------
 for SEED in "${seeds[@]}"; do
-    SLURM_JOB_LABEL="${param1}_${par1}_${param2}_${par2}_seed${SEED}"
+    SLURM_JOB_LABEL="${par1}_${par2}_seed${SEED}"
     WORKDIR="${SLURM_SUBMIT_DIR}/runs/${SLURM_JOB_LABEL}"
     mkdir -p "$WORKDIR"
 
@@ -54,10 +55,11 @@ for SEED in "${seeds[@]}"; do
     # Update config for current parameters
     sed -i "s/^${param1} = .*/${param1} = ${par1}/" "$WORKDIR/config.toml"
     sed -i "s/^${param2} = .*/${param2} = ${par2}/" "$WORKDIR/config.toml"
+    sed -i "s/^seed = .*/seed = ${SEED}/" "$WORKDIR/config.toml"
 
     # Run in the proper working directory
     echo "Running par1=$par1, par2=$par2, seed=$SEED"
-    srun --exclusive --cpus-per-task=2 --chdir="$WORKDIR" python run.py --seed "$SEED" --param_tag "$SLURM_JOB_LABEL" &
+    srun --exclusive --cpus-per-task=2 --chdir="$WORKDIR" python run.py --param_tag "$SLURM_JOB_LABEL" &
 
 wait
 
