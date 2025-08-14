@@ -1,7 +1,7 @@
 [experiment_params]
 seed = 42
 patterns = ['random']
-group_tag = 'scanning_durations'
+group_tag = 'dur_num_scan'
 pre_transforms = ['to_biounits'] # ORDER MATTERS GREATLY
 
 [network_params]
@@ -24,9 +24,9 @@ d_int = 15
 pattern_duration = 15.0
 pattern_dt = 20.0
 dt = 0.1
-training_epochs = 2
-replay_epochs = 2
-training_cycles = 2
+training_epochs = 100
+replay_epochs = 50
+training_cycles = 25
 validation_cycles = 2
 replay_cycles = 2
 eta_out = 10e-4
