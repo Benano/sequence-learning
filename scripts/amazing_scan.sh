@@ -5,7 +5,7 @@
 #SBATCH --time=2:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=12
-#SBATCH --mem-per-cpu=2G
+#SBATCH --mem-per-cpu=4G
 #SBATCH --partition=epyc2
 #SBATCH --array=0-63  # 8 param_vals1 x 8 param_vals2 = 64 parameter combos
 #SBATCH --output=slurm_logs/slurm-%A_A%a.out
@@ -40,8 +40,8 @@ par2=${param_vals2[$j]}
 # --------------------
 # Loop over seeds serially
 # --------------------
+SLURM_JOB_LABEL="${par1}_${par2}"
 for SEED in "${seeds[@]}"; do
-    SLURM_JOB_LABEL="${par1}_${par2}_seed${SEED}"
     WORKDIR="${SLURM_SUBMIT_DIR}/runs/${SLURM_JOB_LABEL}"
     mkdir -p "$WORKDIR"
 
