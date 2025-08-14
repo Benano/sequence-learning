@@ -47,7 +47,7 @@ def track_config(config, neptune_run):
             neptune_run[f"config/{section}/{key}"] = value
 
 
-def main(seed, parameter_tag, saving):
+def main(parameter_tag, saving):
     from elise.config import FullConfig
 
     print(saving)
@@ -58,8 +58,7 @@ def main(seed, parameter_tag, saving):
     pattern_name = "_".join(experiment_params.patterns)
 
     # Set the seed in the config
-    rng = np.random.default_rng(seed)
-    experiment_params.seed = seed
+    rng = np.random.default_rng(experiment_params.seed)
     run_path = Path.cwd()
 
     # Create directories for artifacts, figures, and patterns
@@ -76,7 +75,6 @@ def main(seed, parameter_tag, saving):
         tags=[pattern_name, parameter_tag],
     )
     neptune_run["sys/group_tags"].add(experiment_params.group_tag)
-    neptune_run["parameters/seed"] = seed
 
     run_id = neptune_run["sys/id"].fetch()
     print(f"Run ID: {run_id}")  # Print the run ID for reference
@@ -147,9 +145,6 @@ if __name__ == "__main__":
         description="Run ELiSe experiment with a specified random seed."
     )
     parser.add_argument(
-        "--seed", type=int, default=42, help="Random seed for NumPy RNG"
-    )
-    parser.add_argument(
         "--param_tag", type=str, default="", help="Parameter tag for neptune"
     )
     parser.add_argument(
@@ -157,4 +152,4 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    main(args.seed, args.param_tag, args.saving)
+    main(args.param_tag, args.saving)
