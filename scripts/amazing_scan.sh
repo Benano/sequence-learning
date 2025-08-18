@@ -67,7 +67,7 @@ sed -i "s/^${param2} = .*/${param2} = ${par2}/" "$WORKDIR/config.toml"
 sed -i "s/^seed = .*/seed = ${seed}/" "$WORKDIR/config.toml"
 
 # Run in the proper working directory
-echo "Running par1=$par1, par2=$par2, seed=$SEED"
+echo "Running par1=$par1, par2=$par2, seed=$seed"
 srun --exclusive --cpus-per-task=2 --chdir="$WORKDIR" python run.py --param_tag "$SLURM_JOB_LABEL"
 
 done
