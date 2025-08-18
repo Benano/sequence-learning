@@ -7,6 +7,7 @@ from typing import Any, Dict, Tuple
 
 @dataclass(slots=True)
 class ExperimentConfig:
+    neptune_project: str = "Elise"
     seed: int = 69
     patterns: list = field(default_factory=list)
     group_tag: str = "default_group"

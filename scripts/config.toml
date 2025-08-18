@@ -1,4 +1,5 @@
 [experiment_params]
+neptune_project = "Elise-scans"
 seed = 42
 patterns = ['random']
 group_tag = 'dur_num_scan'
