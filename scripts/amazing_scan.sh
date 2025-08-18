@@ -18,13 +18,10 @@ conda activate elise
 # Parameter definitions
 # --------------------
 param1='pattern_duration'
-param_vals1=(10.0 20.0)
-# param_vals1=(10.0 20.0 30.0 40.0 50.0 60.0 70.0 80.0)
+param_vals1=(10.0 20.0 30.0 40.0 50.0 60.0 70.0 80.0)
 param2='num_lat'
-# param_vals2=(40 60 80 100 120 140 160 200)
-param_vals2=(40 60)
-seeds=(1 2)   # run these seeds serially for each param combo
-# seeds=(1 2 3 4 5)   # run these seeds serially for each param combo
+param_vals2=(40 60 80 100 120 140 160 200)
+seeds=(1 2 3 4 5)   # run these seeds serially for each param combo
 
 num1=${#param_vals1[@]}
 num2=${#param_vals2[@]}
