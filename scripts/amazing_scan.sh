@@ -49,7 +49,7 @@ seed=${seeds[$seed_idx]}
 # Create working directory and copy files
 # --------------------
 
-SLURM_JOB_LABEL="${par1}_${par2}"
+SLURM_JOB_LABEL="${par1}_${par2}_${seed}_${SLURM_ARRAY_JOB_ID}"
 
 WORKDIR="${SLURM_SUBMIT_DIR}/runs/${SLURM_JOB_LABEL}"
 mkdir -p "$WORKDIR"
@@ -68,6 +68,7 @@ sed -i "s/^seed = .*/seed = ${seed}/" "$WORKDIR/config.toml"
 
 # Run in the proper working directory
 echo "Running par1=$par1, par2=$par2, seed=$seed"
-srun --exclusive --cpus-per-task=2 --chdir="$WORKDIR" python run.py --param_tag "$SLURM_JOB_LABEL"
+TAG="${par1}_${par2}"
+srun --exclusive --cpus-per-task=2 --chdir="$WORKDIR" python run.py --param_tag "$TAG"
 
 done
