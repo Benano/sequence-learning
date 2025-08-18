@@ -64,7 +64,7 @@ cp -r "$SLURM_SUBMIT_DIR/"*.py \
 # Update config for current parameters
 sed -i "s/^${param1} = .*/${param1} = ${par1}/" "$WORKDIR/config.toml"
 sed -i "s/^${param2} = .*/${param2} = ${par2}/" "$WORKDIR/config.toml"
-sed -i "s/^seed = .*/seed = ${SEED}/" "$WORKDIR/config.toml"
+sed -i "s/^seed = .*/seed = ${seed}/" "$WORKDIR/config.toml"
 
 # Run in the proper working directory
 echo "Running par1=$par1, par2=$par2, seed=$SEED"
