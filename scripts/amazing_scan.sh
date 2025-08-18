@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --mem-per-cpu=4G
 #SBATCH --partition=epyc2
-#SBATCH --array=0-7  # 8 param_vals1 x 8 param_vals2 = 64 parameter combos
+#SBATCH --array=0-319  # 8 param_vals1 x 8 param_vals2 = 64 parameter combos
 #SBATCH --output=slurm_logs/slurm-%A_A%a.out
 
 module load Anaconda3
