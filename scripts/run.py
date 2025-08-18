@@ -68,8 +68,9 @@ def main(parameter_tag, saving):
     artifact_path.mkdir(exist_ok=True)
     figure_path.mkdir(exist_ok=True)
 
+    project_name = experiment_params.neptune_project
     neptune_run = neptune.init_run(
-        project="elise-neurotma/ELiSe",
+        project=f"elise-neurotma/{project_name}",
         # custom_run_id=run_path.name[-16:],
         name=run_path.name,
         tags=[pattern_name, parameter_tag],
