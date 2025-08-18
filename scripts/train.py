@@ -8,7 +8,7 @@ from tqdm import tqdm
 from utils import load_pattern_flexible
 
 from elise.data import Dataloader, MultiPatternDataloader, RandomPattern
-from elise.data_transforms import ColorNotes, CorrelatedNoise, WhiteNoise
+from elise.data_transforms import ColorNotes, CorrelatedNoise, Silence, WhiteNoise
 from elise.model import Network, eq_phi  # noqa
 from elise.optimizer import SimpleUpdater
 from elise.rate_buffer import Buffer
@@ -56,6 +56,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         "to_biounits": to_biounits,
         "harder_softer": harder_softer,
         "color": ColorNotes(),
+        "silence": Silence(),
     }
 
     pre_transforms = []
@@ -101,6 +102,9 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     ax.set_title("Input Pattern")
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
+    plt.show()
+
+    breakpoint()
 
     if neptune_run:
         neptune_run["pattern"].upload(fig)
@@ -127,6 +131,8 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         :: track_params.sim_step
     ]
     r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
+
+    breakpoint()
 
     # Sim params
     training_duration = simulation_params.training_cycles * dataloader.duration

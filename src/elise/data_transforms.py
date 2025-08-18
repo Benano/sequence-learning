@@ -68,3 +68,41 @@ class WhiteNoise:
     def __call__(self, x):
         noise = np.random.normal(0, self.sigma, x.shape[0])
         return x + noise
+
+
+class Silence:
+    def __init__(self, proportion=1 / 3):
+        self.proportion = proportion
+
+    def __call__(self, x):
+        """
+        Apply silence to the middle 1/proportion of the input.
+        """
+        len_x = x.shape[0]
+        silence_mask = np.zeros(len_x, dtype=bool)
+        silence_start = int(len_x * (1 - self.proportion) / 2)
+        silence_end = int(len_x * (1 + self.proportion) / 2)
+        silence_mask[silence_start:silence_end] = True
+        x[silence_mask] = 0.0
+
+        return x
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+
+    # Test silence on 10 x 100 random values
+    silence_transform = Silence(proportion=0.5)
+    test_data = np.random.rand(20, 10)
+    transformed_data = silence_transform(test_data)
+
+    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+    ax[0].imshow(test_data.T, aspect="auto", cmap="viridis")
+    ax[0].set_title("Original Data")
+    ax[1].imshow(transformed_data.T, aspect="auto", cmap="viridis")
+    ax[1].set_title("Transformed Data with Silence")
+    plt.tight_layout()
+    plt.show()
+
+    print("Original data:\n", test_data)
+    print("Transformed data with silence:\n", transformed_data)
