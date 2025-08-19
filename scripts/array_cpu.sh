@@ -13,8 +13,7 @@ eval "$(conda shell.bash hook)"
 conda activate elise
 
 NODE_ID=$SLURM_ARRAY_TASK_ID
-seeds=(1 2 3 4 5)   # run these seeds serially for each param combo
-seed=${seeds[$NODE_ID]}
+seed=$NODE_ID
 
 SLURM_JOB_LABEL="${seed}_${SLURM_ARRAY_JOB_ID}"
 WORKDIR="${SLURM_SUBMIT_DIR}/runs/${SLURM_JOB_LABEL}"
@@ -36,3 +35,6 @@ else
     saving=""
 fi
   srun --exclusive --cpus-per-task=2 --chdir="$WORKDIR" python run.py --param_tag "$TAG" --saving $saving
+  wait
+
+rm -rf "$WORKDIR"
