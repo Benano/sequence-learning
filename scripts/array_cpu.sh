@@ -6,8 +6,8 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --mem-per-cpu=2G
 #SBATCH --partition=epyc2
-#
-Your code below this line
+#SBATCH --output=slurm_logs/slurm-%A_A%a.out
+
 module load Anaconda3
 eval "$(conda shell.bash hook)"
 conda activate elise
