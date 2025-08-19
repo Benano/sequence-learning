@@ -1,9 +1,9 @@
 [experiment_params]
-neptune_project = "Elise-scans"
+neptune_project = "ELiSe"
 seed = 42
-patterns = ['random']
-group_tag = 'dur_num_scan'
-pre_transforms = ['to_biounits'] # ORDER MATTERS GREATLY
+patterns = ['Prelude4']
+group_tag = 'silence'
+pre_transforms = ['silence', 'to_biounits'] # ORDER MATTERS GREATLY
 
 [network_params]
 num_lat = 100
@@ -22,10 +22,10 @@ d_som = [5, 25]
 d_int = 15
 
 [simulation_params]
-pattern_duration = 15.0
-pattern_dt = 20.0
+pattern_duration = 500.0
+pattern_dt = 2.0
 dt = 0.1
-training_epochs = 100
+training_epochs = 3
 replay_epochs = 50
 training_cycles = 25
 validation_cycles = 2

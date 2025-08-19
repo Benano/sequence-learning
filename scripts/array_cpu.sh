@@ -1,10 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name="elise_array"
 #SBATCH --time=2:00:00
-#SBATCH --ntasks=10
-#SBATCH --array=0-2
-#SBATCH --ntasks-per-node=10
-#SBATCH --cpus-per-task=12
+#SBATCH --ntasks=1
+#SBATCH --array=0-19
+#SBATCH --cpus-per-task=2
 #SBATCH --mem-per-cpu=2G
 #SBATCH --partition=epyc2
 #
@@ -14,21 +13,26 @@ eval "$(conda shell.bash hook)"
 conda activate elise
 
 NODE_ID=$SLURM_ARRAY_TASK_ID
+seeds=(1 2 3 4 5)   # run these seeds serially for each param combo
+seed=${seeds[$NODE_ID]}
 
-SLURM_NTASKS=${SLURM_NTASKS:-10}  # Default to 10 tasks if not set
+SLURM_JOB_LABEL="${seed}_${SLURM_ARRAY_JOB_ID}"
+WORKDIR="${SLURM_SUBMIT_DIR}/runs/${SLURM_JOB_LABEL}"
+mkdir -p "$WORKDIR"
 
-# using the SLURM_NTASKS env var
-for i in $( seq 0 $((SLURM_NTASKS-1))); do
+# Copy required files
+cp -r "$SLURM_SUBMIT_DIR/"*.py \
+      "$SLURM_SUBMIT_DIR/config.toml" \
+      "$SLURM_SUBMIT_DIR/scan.sh" \
+      "$SLURM_SUBMIT_DIR/patterns" \
+      "$WORKDIR"
 
-  TASK_ID=$((NODE_ID * SLURM_NTASKS + i))
+# Update config for current parameters
+sed -i "s/^seed = .*/seed = ${seed}/" "$WORKDIR/config.toml"
 
-  if [ $TASK_ID -eq 0 ]; then
-    saving="--saving"
-  else
-      saving=""
-  fi
-    eval "python run.py --seed $TASK_ID $saving" &
-
-done
-
-wait
+if [ $NODE_ID -eq 0 ]; then
+  saving="--saving"
+else
+    saving=""
+fi
+  srun --exclusive --cpus-per-task=2 --chdir="$WORKDIR" python run.py --param_tag "$TAG" --saving $saving
