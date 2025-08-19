@@ -22,7 +22,6 @@ mkdir -p "$WORKDIR"
 # Copy required files
 cp -r "$SLURM_SUBMIT_DIR/"*.py \
       "$SLURM_SUBMIT_DIR/config.toml" \
-      "$SLURM_SUBMIT_DIR/scan.sh" \
       "$SLURM_SUBMIT_DIR/patterns" \
       "$WORKDIR"
 
