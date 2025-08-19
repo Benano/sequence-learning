@@ -104,8 +104,6 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     ax.set_ylabel("Neurons")
     plt.show()
 
-    breakpoint()
-
     if neptune_run:
         neptune_run["pattern"].upload(fig)
 
@@ -131,8 +129,6 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         :: track_params.sim_step
     ]
     r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
-
-    breakpoint()
 
     # Sim params
     training_duration = simulation_params.training_cycles * dataloader.duration
