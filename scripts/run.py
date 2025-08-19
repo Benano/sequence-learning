@@ -68,12 +68,16 @@ def main(parameter_tag, saving):
     artifact_path.mkdir(exist_ok=True)
     figure_path.mkdir(exist_ok=True)
 
+    tags = [pattern_name]
+    if parameter_tag:
+        tags.append(parameter_tag)
+
     project_name = experiment_params.neptune_project
     neptune_run = neptune.init_run(
         project=f"elise-neurotma/{project_name}",
         # custom_run_id=run_path.name[-16:],
         name=run_path.name,
-        tags=[pattern_name, parameter_tag],
+        tags=tags,
     )
     neptune_run["sys/group_tags"].add(experiment_params.group_tag)
 

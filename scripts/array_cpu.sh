@@ -34,7 +34,7 @@ if [ $NODE_ID -eq 0 ]; then
 else
     saving=""
 fi
-  srun --exclusive --cpus-per-task=2 --chdir="$WORKDIR" python run.py --param_tag "$TAG" --saving $saving
+  srun --exclusive --cpus-per-task=2 --chdir="$WORKDIR" python run.py --saving $saving
   wait
 
 rm -rf "$WORKDIR"
