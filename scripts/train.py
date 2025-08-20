@@ -139,6 +139,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     train_tracker = Tracker(track_params.vars_train, track_params.sim_step)
     validation_tracker = Tracker(track_params.vars_val, track_params.sim_step)
     replay_tracker = Tracker(track_params.vars_replay, track_params.sim_step)
+    epoch_tracker = Tracker(track_params.vars_epoch, track_params.sim_step)
 
     c_t = 0.0
     nr_epochs = simulation_params.training_epochs
@@ -190,6 +191,8 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
             losses["validation_loss_r"].append(mse_loss_r)
             losses["validation_loss_u"].append(mse_loss_u)
+
+        epoch_tracker.track(network, c_t)
 
     train_tracker.store("r_target", r_target)
     validation_tracker.store("r_target", r_target)
