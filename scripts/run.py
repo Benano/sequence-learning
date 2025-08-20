@@ -102,20 +102,23 @@ def main(parameter_tag, saving):
     # Import your main function (assuming it's in the same directory as run.py)
     from train import main as train_main
 
-    network, dataloader, train_tracker, validation_tracker, replay_tracker = train_main(
-        full_config, run_path, artifact_path, pattern_path, neptune_run, rng
-    )
+    (
+        network,
+        dataloader,
+        train_tracker,
+        validation_tracker,
+        replay_tracker,
+        epoch_tracker,
+    ) = train_main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng)
 
     network.save(artifact_path / "network.pkl")
     dataloader.save(artifact_path / "dataloader.pkl")
-    validation_tracker.save(artifact_path / "validation_tracker.pkl")
-    train_tracker.save(artifact_path / "train_tracker.pkl")
-    replay_tracker.save(artifact_path / "replay_tracker.pkl")
 
     if saving:
         validation_tracker.save_dict(artifact_path / "validation_dict.pkl")
         train_tracker.save_dict(artifact_path / "train_dict.pkl")
         replay_tracker.save_dict(artifact_path / "replay_dict.pkl")
+        epoch_tracker.save_dict(artifact_path / "epoch_dict.pkl")
 
         neptune_run["network"].upload(str(artifact_path / "network.pkl"))
 
@@ -124,6 +127,7 @@ def main(parameter_tag, saving):
             str(artifact_path / "validation_tracker.pkl")
         )
         neptune_run["replay_tracker"].upload(str(artifact_path / "replay_tracker.pkl"))
+
         neptune_run["replay_dict"].upload(str(artifact_path / "replay_dict.pkl"))
         neptune_run["train_dict"].upload(str(artifact_path / "train_dict.pkl"))
         neptune_run["validation_dict"].upload(

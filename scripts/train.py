@@ -255,7 +255,14 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     replay_tracker.store("losses", losses)
     replay_tracker.store("r_target", r_target)
 
-    return network, dataloader, train_tracker, validation_tracker, replay_tracker
+    return (
+        network,
+        dataloader,
+        train_tracker,
+        validation_tracker,
+        replay_tracker,
+        epoch_tracker,
+    )
 
 
 if __name__ == "__main__":
