@@ -141,14 +141,16 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     replay_tracker = Tracker(track_params.vars_replay, track_params.sim_step)
 
     c_t = 0.0
+    nr_epochs = simulation_params.training_epochs
+    epochs_to_track = [0, int(nr_epochs / 2), nr_epochs - 1]
     losses = defaultdict(list)
-    for epoch in tqdm(range(simulation_params.training_epochs)):
+    for epoch in tqdm(range(nr_epochs)):
         for t in np.arange(0, training_duration, simulation_params.dt):
             network(u_inp=dataloader(t))
 
             # Only last epoch
             c_t = c_t + simulation_params.dt
-            if epoch >= simulation_params.training_epochs - 1:
+            if epoch in epochs_to_track:
                 train_tracker.track(network, c_t)
 
         # Add learning rate decay
