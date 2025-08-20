@@ -130,6 +130,11 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     ]
     r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
 
+    u_target_real = dataloader.get_full_pattern(dt, online_transforms=True)[
+        :: track_params.sim_step
+    ]
+    r_target_real = eq_phi(u_target_real, neuron_params.a, neuron_params.b)
+
     # Sim params
     training_duration = simulation_params.training_cycles * dataloader.duration
     validation_duration = simulation_params.validation_cycles * dataloader.duration
@@ -195,6 +200,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         epoch_tracker.track(network, c_t)
 
     train_tracker.store("r_target", r_target)
+    train_tracker.store("r_target_real", r_target_real)
     validation_tracker.store("r_target", r_target)
     validation_tracker.store("losses", losses)
 
