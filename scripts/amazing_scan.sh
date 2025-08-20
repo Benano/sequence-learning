@@ -5,7 +5,7 @@
 #SBATCH --time=4:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
-#SBATCH --mem-per-cpu=4G
+#SBATCH --mem-per-cpu=2G
 #SBATCH --partition=epyc2
 #SBATCH --array=0-319  # 8 param_vals1 x 8 param_vals2 = 64 parameter combos
 #SBATCH --output=slurm_logs/slurm-%A_A%a.out
@@ -18,9 +18,8 @@ conda activate elise
 # Parameter definitions
 # --------------------
 param1='num_vis'
-param_vals1=(10 20 30 40 50 60 70 80)
+param_vals2=(40 60 80 100 120 140 160 180)
 # param1='pattern_duration'
-# param_vals1=(10.0 20.0 30.0 40.0 50.0 60.0 70.0 80.0)
 param2='num_lat'
 param_vals2=(40 60 80 100 120 140 160 180)
 seeds=(1 2 3 4 5)   # run these seeds serially for each param combo
@@ -68,6 +67,10 @@ sed -i "s/^seed = .*/seed = ${seed}/" "$WORKDIR/config.toml"
 # Run in the proper working directory
 echo "Running par1=$par1, par2=$par2, seed=$seed"
 TAG="${par1}_${par2}"
-srun --exclusive --cpus-per-task=2 --chdir="$WORKDIR" python run.py --param_tag "$TAG"
+srun --exclusive --cpus-per-task=3 --chdir="$WORKDIR" python run.py --param_tag "$TAG"
+
+wait
+
+rm -rf "$WORKDIR"
 
 done
