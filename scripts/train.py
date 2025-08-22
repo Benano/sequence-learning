@@ -148,15 +148,16 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
     c_t = 0.0
     nr_epochs = simulation_params.training_epochs
-    epochs_to_track = [0, int(nr_epochs / 4), int(nr_epochs / 2), nr_epochs - 1]
     losses = defaultdict(list)
+
     for epoch in tqdm(range(nr_epochs)):
         for t in np.arange(0, training_duration, simulation_params.dt):
             network(u_inp=dataloader(t))
 
             # Only last epoch
             c_t = c_t + simulation_params.dt
-            if epoch in epochs_to_track:
+            first_two_patterns = 2 * dataloader.duration
+            if t < first_two_patterns:
                 train_tracker.track(network, c_t)
 
         # Add learning rate decay
