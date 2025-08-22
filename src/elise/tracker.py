@@ -93,6 +93,9 @@ class Tracker:
         :param path: File path to save the tracker dictionary.
         :type path: str
         """
+        for key in self.track_dict:
+            self.track_dict[key] = np.array(self.track_dict[key])
+
         with open(path, "wb") as f:
             pickle.dump(self.track_dict, f)
 
