@@ -47,7 +47,16 @@ def track_config(config, neptune_run):
             neptune_run[f"config/{section}/{key}"] = value
 
 
-def main(parameter_tag, saving):
+def make_debug_sim_params(simulation_params):
+    simulation_params.training_cycles = 2
+    simulation_params.training_epochs = 2
+    simulation_params.replay_cycles = 2
+    simulation_params.replay_epochs = 2
+
+    return simulation_params
+
+
+def main(parameter_tag, saving, debug):
     from elise.config import FullConfig
 
     print(saving)
@@ -73,13 +82,26 @@ def main(parameter_tag, saving):
         tags.append(parameter_tag)
 
     project_name = experiment_params.neptune_project
-    neptune_run = neptune.init_run(
-        project=f"elise-neurotma/{project_name}",
-        # custom_run_id=run_path.name[-16:],
-        name=run_path.name,
-        tags=tags,
-    )
-    neptune_run["sys/group_tags"].add(experiment_params.group_tag)
+
+    if debug:
+        full_config.simulation_params = make_debug_sim_params(
+            full_config.simulation_params
+        )
+        tags.append("debug")
+        neptune_run = neptune.init_run(
+            project="elise-neurotma/Elise-tests",
+            # custom_run_id=run_path.name[-16:],
+            name=run_path.name,
+            tags=tags,
+        )
+    else:
+        neptune_run = neptune.init_run(
+            project=f"elise-neurotma/{project_name}",
+            # custom_run_id=run_path.name[-16:],
+            name=run_path.name,
+            tags=tags,
+        )
+        neptune_run["sys/group_tags"].add(experiment_params.group_tag)
 
     run_id = neptune_run["sys/id"].fetch()
     print(f"Run ID: {run_id}")  # Print the run ID for reference
@@ -113,16 +135,14 @@ def main(parameter_tag, saving):
 
     network.save(artifact_path / "network.pkl")
     dataloader.save(artifact_path / "dataloader.pkl")
+    validation_tracker.save_dict(artifact_path / "validation_dict.pkl")
+    train_tracker.save_dict(artifact_path / "train_dict.pkl")
+    replay_tracker.save_dict(artifact_path / "replay_dict.pkl")
+    epoch_tracker.save_dict(artifact_path / "epoch_dict.pkl")
 
     if saving:
         neptune_run["network"].upload(str(artifact_path / "network.pkl"))
         neptune_run["dataloader"].upload(str(artifact_path / "dataloader.pkl"))
-
-        validation_tracker.save_dict(artifact_path / "validation_dict.pkl")
-        train_tracker.save_dict(artifact_path / "train_dict.pkl")
-        replay_tracker.save_dict(artifact_path / "replay_dict.pkl")
-        epoch_tracker.save_dict(artifact_path / "epoch_dict.pkl")
-
         neptune_run["replay_dict"].upload(str(artifact_path / "replay_dict.pkl"))
         neptune_run["train_dict"].upload(str(artifact_path / "train_dict.pkl"))
         neptune_run["epoch_dict"].upload(str(artifact_path / "epoch_dict.pkl"))
@@ -153,6 +173,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--saving", action="store_true", help="Flag for savingd artifacts"
     )
+
+    parser.add_argument(
+        "--debug", action="store_true", help="Flag for debug mode (no neptune logging)"
+    )
     args = parser.parse_args()
 
-    main(args.param_tag, args.saving)
+    main(args.param_tag, args.saving, args.debug)
