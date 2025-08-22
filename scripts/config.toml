@@ -1,12 +1,12 @@
 [experiment_params]
-neptune_project = "ELiSe"
+neptune_project = "Elise-noise"
 seed = 42
-patterns = ['Prelude4']
-group_tag = 'silence'
-pre_transforms = ['silence', 'to_biounits'] # ORDER MATTERS GREATLY
+patterns = ['fuer_elise_4']
+group_tag = 'noise_4_100'
+pre_transforms = ['to_biounits'] # ORDER MATTERS GREATLY
 
 [network_params]
-num_lat = 100
+num_lat = 150
 num_vis = 10
 
 [weight_params]
@@ -22,10 +22,10 @@ d_som = [5, 25]
 d_int = 15
 
 [simulation_params]
-pattern_duration = 500.0
-pattern_dt = 2.0
+pattern_duration = 250.0
+pattern_dt = 1.0
 dt = 0.1
-training_epochs = 3
+training_epochs = 100
 replay_epochs = 50
 training_cycles = 25
 validation_cycles = 2
@@ -33,7 +33,7 @@ replay_cycles = 2
 eta_out = 10e-4
 eta_lat = 10e-3
 eta_decay = 0.98
-noise_sigma = 0
+noise_sigma = 4
 noise_tau = 100
 
 [replay_params]
