@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import pickle
+import tomllib as toml
+from pathlib import Path
 
 import neptune
 import numpy as np
@@ -52,22 +54,13 @@ def get_single_run(project_name, run_id, path):
     return c_run
 
 
-def get_multi_run_group_tag(project_name, tag_name, save_loc):
-    sigma = [0, 2, 4, 8]
-    for i in np.arange(1):
+def get_multi_run_group_tag(project_name, tag_names, artifact_names, save_loc):
+    for tag_name in tag_names:
         save_loc.mkdir(parents=True, exist_ok=True)
         # save_loc = Path("/Users/benano/Documents/testing_cluster")
         save_loc_artifacts = save_loc / "artifacts.pkl"
         save_loc_config = save_loc / "config.toml"
 
-        artifact_names = [
-            "replay_loss_r",
-            "replay_loss_pat_0",
-            "replay_loss_pat_1",
-            "validation_loss_r",
-            "validation_loss_pat_0",
-            "validation_loss_pat_1",
-        ]
         artifact_data, run_ids, run_save_id = get_neptune_losses(
             project_name, tag_name, artifact_names
         )
@@ -98,6 +91,7 @@ def get_multi_run_group_tag(project_name, tag_name, save_loc):
             destination=str(save_loc / "validation_dict.pkl")
         )
         c_run["replay_dict"].download(destination=str(save_loc / "replay_dict.pkl"))
+        # c_run["epoch_dict"].download(destination=str(save_loc / "epoch_dict.pkl"))
 
 
 def get_neptune_losses_scan(
@@ -123,7 +117,7 @@ def get_neptune_losses_scan(
             ]
 
             loss = []
-            loss_idx = 1
+            loss_idx = 10
             for run_id in seeded_runs["sys/id"].tolist():
                 run = neptune.init_run(
                     project=f"elise-neurotma/{project_name}",
@@ -138,7 +132,7 @@ def get_neptune_losses_scan(
                 loss.append(replay_loss[loss_idx])
 
             loss = np.array(loss)
-            mean_loss = np.mean(loss)
+            mean_loss = np.nanmean(loss)
             loss_scan[idx1, idx2] = mean_loss
 
     import matplotlib.pyplot as plt
@@ -162,34 +156,51 @@ def get_neptune_losses_scan(
 
 
 if __name__ == "__main__":
-
     # Get the losses for a scan of runs with different parameters
-    param1_name = "pattern_duration"
-    param1_values = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]
+    # param1_name = "pattern_duration"
+    # param1_values = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]
 
-    param2_name = "num_lat"
-    param2_values = [40, 60, 80, 100, 120, 140, 160, 200]
+    # param1_name = "num_vis"
+    # param1_values = [40, 60, 80, 100, 120, 140, 160, 180]
 
-    seeds = [1, 2, 3, 4, 5]  # run these seeds serially for each param combo
+    # param2_name = "num_lat"
+    # param2_values = [40, 60, 80, 100, 120, 140, 160, 180]
 
-    project_name = "Elise_scans"
-    tag = "dur_num"
+    # seeds = [1, 2, 3, 4, 5]  # run these seeds serially for each param combo
 
-    get_neptune_losses_scan(
-        project_name=project_name,
-        tag=tag,
-        param1_name=param1_name,
-        param1_values=param1_values,
-        param2_name=param2_name,
-        param2_values=param2_values,
-    )
+    # # project_name = "Elise-scans-width"
+    # project_name = "Elise-scans-width"
+    # tag = "random_scan_width"
 
-    # get_multi_run_group_tag(
-    #     project_name="Elise_scans",
-    #     tag_name="dur_num",
-    #     save_loc=Path("/Users/benano/Documents/org/manuscripts/SequenceLearningPaper/data/dur_num_scan/")
+    # get_neptune_losses_scan(
+    #     project_name=project_name,
+    #     tag=tag,
+    #     param1_name=param1_name,
+    #     param1_values=param1_values,
+    #     param2_name=param2_name,
+    #     param2_values=param2_values,
     # )
 
-    # Get the losses for a specific run group tag
+    artifact_names = [
+        "replay_loss_r",
+        # "replay_loss_pat_0",
+        # "replay_loss_pat_1",
+        "validation_loss_r",
+        # "validation_loss_pat_0",
+        # "validation_loss_pat_1",
+    ]
+
+    tag_names = [f"noise_{s}_100" for s in [2, 4, 8]]
+
+    get_multi_run_group_tag(
+        project_name="Elise-noise",
+        tag_names=tag_names,
+        artifact_names=artifact_names,
+        save_loc=Path(
+            "/Users/benano/Documents/org/manuscripts/SequenceLearningPaper/data/noise/"
+        ),
+    )
+
+    # # Get the losses for a specific run group tag
     # tag_name = "reignition_short_gap"
     # save_loc = Path(f"/Users/benano/Documents/org/manuscripts/SequenceLearningPaper/data/reignition_gap/")
