@@ -115,26 +115,20 @@ def main(parameter_tag, saving):
     dataloader.save(artifact_path / "dataloader.pkl")
 
     if saving:
+        neptune_run["network"].upload(str(artifact_path / "network.pkl"))
+        neptune_run["dataloader"].upload(str(artifact_path / "dataloader.pkl"))
+
         validation_tracker.save_dict(artifact_path / "validation_dict.pkl")
         train_tracker.save_dict(artifact_path / "train_dict.pkl")
         replay_tracker.save_dict(artifact_path / "replay_dict.pkl")
         epoch_tracker.save_dict(artifact_path / "epoch_dict.pkl")
 
-        neptune_run["network"].upload(str(artifact_path / "network.pkl"))
-
-        neptune_run["train_tracker"].upload(str(artifact_path / "train_tracker.pkl"))
-        neptune_run["validation_tracker"].upload(
-            str(artifact_path / "validation_tracker.pkl")
-        )
-        neptune_run["replay_tracker"].upload(str(artifact_path / "replay_tracker.pkl"))
-
         neptune_run["replay_dict"].upload(str(artifact_path / "replay_dict.pkl"))
         neptune_run["train_dict"].upload(str(artifact_path / "train_dict.pkl"))
+        neptune_run["epoch_dict"].upload(str(artifact_path / "epoch_dict.pkl"))
         neptune_run["validation_dict"].upload(
             str(artifact_path / "validation_dict.pkl")
         )
-
-        neptune_run["dataloader"].upload(str(artifact_path / "dataloader.pkl"))
         neptune_run["sys/tags"].add("full_save")
 
     from plotting import main as plotting_main
