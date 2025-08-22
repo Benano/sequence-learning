@@ -82,10 +82,6 @@ def get_multi_run_group_tag(project_name, tag_names, artifact_names, save_loc):
 
         c_run["network"].download(destination=str(save_loc / "network.pkl"))
         c_run["dataloader"].download(destination=str(save_loc / "dataloader.pkl"))
-        c_run["train_tracker"].download(destination=str(save_loc / "train_tracker.pkl"))
-        c_run["replay_tracker"].download(
-            destination=str(save_loc / "replay_tracker.pkl")
-        )
         c_run["train_dict"].download(destination=str(save_loc / "train_dict.pkl"))
         c_run["validation_dict"].download(
             destination=str(save_loc / "validation_dict.pkl")
