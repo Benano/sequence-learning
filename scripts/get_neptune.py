@@ -56,11 +56,11 @@ def get_single_run(project_name, run_id, path):
 
 def get_multi_run_group_tag(project_name, tag_names, artifact_names, save_loc):
     for tag_name in tag_names:
-        save_loc = save_loc / tag_name
-        save_loc.mkdir(parents=True, exist_ok=True)
+        c_save_loc = save_loc / tag_name
+        c_save_loc.mkdir(parents=True, exist_ok=True)
         # save_loc = Path("/Users/benano/Documents/testing_cluster")
-        save_loc_artifacts = save_loc / "artifacts.pkl"
-        save_loc_config = save_loc / "config.toml"
+        save_loc_artifacts = c_save_loc / "artifacts.pkl"
+        save_loc_config = c_save_loc / "config.toml"
 
         artifact_data, run_ids, run_save_id = get_neptune_losses(
             project_name, tag_name, artifact_names
@@ -78,16 +78,16 @@ def get_multi_run_group_tag(project_name, tag_names, artifact_names, save_loc):
             pickle.dump(artifact_data, f)
 
         # Save text file with the tag name
-        with open(save_loc / "tag_name.txt", "w") as f:
+        with open(c_save_loc / "tag_name.txt", "w") as f:
             f.write(tag_name)
 
-        c_run["network"].download(destination=str(save_loc / "network.pkl"))
-        c_run["dataloader"].download(destination=str(save_loc / "dataloader.pkl"))
-        c_run["train_dict"].download(destination=str(save_loc / "train_dict.pkl"))
+        c_run["network"].download(destination=str(c_save_loc / "network.pkl"))
+        c_run["dataloader"].download(destination=str(c_save_loc / "dataloader.pkl"))
+        c_run["train_dict"].download(destination=str(c_save_loc / "train_dict.pkl"))
         c_run["validation_dict"].download(
-            destination=str(save_loc / "validation_dict.pkl")
+            destination=str(c_save_loc / "validation_dict.pkl")
         )
-        c_run["replay_dict"].download(destination=str(save_loc / "replay_dict.pkl"))
+        c_run["replay_dict"].download(destination=str(c_save_loc / "replay_dict.pkl"))
         # c_run["epoch_dict"].download(destination=str(save_loc / "epoch_dict.pkl"))
 
 
