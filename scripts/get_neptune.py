@@ -187,14 +187,14 @@ if __name__ == "__main__":
         # "validation_loss_pat_1",
     ]
 
-    tag_names = [f"noise_{s}_100" for s in [2, 4, 8]]
+    tag_names = ["silence_p4"]
 
     get_multi_run_group_tag(
-        project_name="Elise-noise",
+        project_name="Silence",
         tag_names=tag_names,
         artifact_names=artifact_names,
         save_loc=Path(
-            "/Users/benano/Documents/org/manuscripts/SequenceLearningPaper/data/noise/"
+            "/Users/benano/Documents/org/manuscripts/SequenceLearningPaper/data/silence/"
         ),
     )
 
