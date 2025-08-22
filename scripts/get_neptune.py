@@ -56,6 +56,7 @@ def get_single_run(project_name, run_id, path):
 
 def get_multi_run_group_tag(project_name, tag_names, artifact_names, save_loc):
     for tag_name in tag_names:
+        save_loc = save_loc / tag_name
         save_loc.mkdir(parents=True, exist_ok=True)
         # save_loc = Path("/Users/benano/Documents/testing_cluster")
         save_loc_artifacts = save_loc / "artifacts.pkl"
