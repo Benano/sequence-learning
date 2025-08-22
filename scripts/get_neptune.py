@@ -187,10 +187,10 @@ if __name__ == "__main__":
         # "validation_loss_pat_1",
     ]
 
-    tag_names = [f"noise_{s}_100" for s in [0, 2, 4, 8]]
+    tag_names = [f"noise_{s}_100" for s in [2, 4, 8]]
 
     get_multi_run_group_tag(
-        project_name="ELiSe",
+        project_name="Elise-noise",
         tag_names=tag_names,
         artifact_names=artifact_names,
         save_loc=Path(
