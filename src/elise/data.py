@@ -176,7 +176,37 @@ class RandomPattern(BasePattern):
         return pattern
 
 
-class RandomNonMarkovianPattern(BasePattern):
+class RandomSampledNonMarkovianPattern(BasePattern):
+    def __init__(self, duration, width, rng, dt: float = 1.0, nmk=2):
+        self.nr_notes = int(duration)
+        self.width = width
+        self.dt = dt
+        self.rng = rng
+        self.duration = self.nr_notes * self.dt
+        self.nmk = nmk
+
+        pattern = np.zeros((self.nr_notes + self.nmk, self.width), dtype=int)
+        pattern[0 : self.nmk] = rng.integers(0, 2, (self.nmk, self.width))
+
+        self.trans_p = np.zeros((2, self.width), dtype=float)
+        self.trans_p[0] = self.rng.uniform(0.1, 0.8, self.width)
+        self.trans_p[1] = self.rng.uniform(0.1, 0.2, self.width)
+        for i in range(self.nr_notes - 1):
+            c_probs = np.where(pattern[i - self.nmk], self.trans_p[0], self.trans_p[1])
+            random_vals = self.rng.uniform(size=self.width)
+            result = (random_vals < c_probs).astype(int)
+            pattern[i + 1 + self.nmk] = result
+
+        pattern = pattern[self.nmk :, :]
+
+        super().__init__(pattern=pattern, dt=dt)
+
+    def _convert(self, pattern: np.ndarray) -> np.ndarray:
+        # No conversion in generator; just return the input
+        return pattern
+
+
+class RandomCopiedNonMarkovianPattern(BasePattern):
     def __init__(self, duration, width, rng, dt: float = 1.0, non_markoviannes=2):
         self.nr_notes = int(duration)
         self.width = width
@@ -732,8 +762,8 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     rng = np.random.default_rng(42)
-    pattern = RandomNonMarkovianPattern(
-        duration=50, width=6, rng=rng, dt=0.1, non_markoviannes=20
+    pattern = RandomSampledNonMarkovianPattern(
+        duration=50, width=6, rng=rng, dt=0.1, nmk=6
     )
 
     plt.imshow(pattern.pattern.T, aspect="auto", origin="lower")
