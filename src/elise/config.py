@@ -37,8 +37,6 @@ class WeightConfig:
 @dataclass(slots=True)
 class SimulationConfig:
     dt: float = 0.01
-    pattern_dt: float = 0.25
-    pattern_duration: float = 100.0
     replay_epochs: int = 10
     training_epochs: int = 10
     training_cycles: int = 1000
@@ -47,8 +45,15 @@ class SimulationConfig:
     eta_out: float = 10e-4
     eta_lat: float = 10e-3
     eta_decay: float = 0.95
+
+
+@dataclass(slots=True)
+class PatternConfig:
+    pattern_duration: float = 100.0
+    pattern_dt: float = 0.25
     noise_sigma: float = 1.0
     noise_tau: float = 1
+    non_markov: int = 3
 
 
 @dataclass(slots=True)
@@ -128,6 +133,9 @@ class FullConfig:
         )
         self.simulation_params = self._create_config(
             SimulationConfig, config.get_section("simulation_params")
+        )
+        self.pattern_params = self._create_config(
+            PatternConfig, config.get_section("pattern_params")
         )
         self.neuron_params = self._create_config(
             NeuronConfig, config.get_section("neuron_params")

@@ -22,6 +22,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     neuron_params = full_config.neuron_params
     network_params = full_config.network_params
     simulation_params = full_config.simulation_params
+    pattern_params = full_config.pattern_params
     weight_params = full_config.weight_params
     track_params = full_config.tracking_params
 
@@ -31,9 +32,9 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
             pattern_rng = copy.deepcopy(rng)
             pattern = RandomPattern(
                 width=network_params.num_vis,
-                duration=simulation_params.pattern_duration,
+                duration=pattern_params.pattern_duration,
                 rng=pattern_rng,
-                dt=simulation_params.pattern_dt,
+                dt=pattern_params.pattern_dt,
             )
             patterns.append(pattern)
 
@@ -41,8 +42,8 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
             pattern_file = pattern_path / f"{pattern_name}.txt"
             pattern = load_pattern_flexible(
                 pattern_file,
-                simulation_params.pattern_duration,
-                simulation_params.pattern_dt,
+                pattern_params.pattern_duration,
+                pattern_params.pattern_dt,
             )
             patterns.append(pattern)
 
@@ -64,18 +65,18 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         pre_transforms.append(pre_transform_dict[transform])
 
     online_transforms = []
-    if simulation_params.noise_sigma > 0:
-        if simulation_params.noise_tau > 0:
+    if pattern_params.noise_sigma > 0:
+        if pattern_params.noise_tau > 0:
             online_transforms.append(
                 CorrelatedNoise(
-                    simulation_params.noise_sigma,
-                    simulation_params.noise_tau,
+                    pattern_params.noise_sigma,
+                    pattern_params.noise_tau,
                     simulation_params.dt,
                 )
             )
 
         else:
-            online_transforms.append(WhiteNoise(simulation_params.noise_sigma))
+            online_transforms.append(WhiteNoise(pattern_params.noise_sigma))
 
     if len(patterns) > 1:
         dataloader = MultiPatternDataloader(
