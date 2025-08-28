@@ -176,6 +176,42 @@ class RandomPattern(BasePattern):
         return pattern
 
 
+class RandomNonMarkovianPattern(BasePattern):
+    def __init__(self, duration, width, rng, dt: float = 1.0, non_markoviannes=2):
+        self.nr_notes = int(duration)
+        self.width = width
+        self.dt = dt
+        self.rng = rng
+        self.duration = self.nr_notes * self.dt
+
+        pattern = np.zeros((self.nr_notes, self.width), dtype=int)
+        pattern[0] = rng.integers(0, 2, self.width)
+        self.trans_p = np.zeros((2, self.width), dtype=float)
+        self.trans_p[0] = self.rng.uniform(0.1, 0.8, self.width)
+        self.trans_p[1] = self.rng.uniform(0.1, 0.2, self.width)
+        for i in range(self.nr_notes - 1):
+            c_probs = np.where(pattern[i], self.trans_p[0], self.trans_p[1])
+            random_vals = self.rng.uniform(size=self.width)
+            result = (random_vals < c_probs).astype(int)
+            pattern[i + 1] = result
+
+        index_first_proportion = int(len(pattern) * 0.1)
+        non_markov_chunk = pattern[
+            index_first_proportion : index_first_proportion + non_markoviannes, :
+        ]
+
+        index_last_proportion = int(len(pattern) * 0.5)
+        pattern[
+            index_last_proportion : index_last_proportion + non_markoviannes, :
+        ] = non_markov_chunk
+
+        super().__init__(pattern=pattern, dt=dt)
+
+    def _convert(self, pattern: np.ndarray) -> np.ndarray:
+        # No conversion in generator; just return the input
+        return pattern
+
+
 def flatten(lst):
     for el in lst:
         if isinstance(el, list):
@@ -690,3 +726,19 @@ class MultiPatternDataloader(BaseDataloader):
     def load(cls, path: str):
         with open(path, "rb") as f:
             return pickle.load(f)
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+
+    rng = np.random.default_rng(42)
+    pattern = RandomNonMarkovianPattern(
+        duration=50, width=6, rng=rng, dt=0.1, non_markoviannes=20
+    )
+
+    plt.imshow(pattern.pattern.T, aspect="auto", origin="lower")
+    plt.xlabel("Time step")
+    plt.ylabel("Pattern dimension")
+    plt.title("Random Pattern over Time")
+    plt.colorbar(label="Value")
+    plt.show()
