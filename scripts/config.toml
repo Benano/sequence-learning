@@ -1,9 +1,9 @@
 [experiment_params]
-neptune_project = "ELiSe"
+neptune_project = "Elise-tests"
 seed = 42
-patterns = ['Prelude4']
-group_tag = 'silence'
-pre_transforms = ['silence', 'to_biounits'] # ORDER MATTERS GREATLY
+patterns = ['random']
+group_tag = 'non-markvo-test'
+pre_transforms = ['to_biounits'] # ORDER MATTERS GREATLY
 
 [network_params]
 num_lat = 100
@@ -23,7 +23,7 @@ d_int = 15
 
 [simulation_params]
 dt = 0.1
-training_epochs = 3
+training_epochs = 25
 replay_epochs = 50
 training_cycles = 25
 validation_cycles = 2
@@ -33,11 +33,12 @@ eta_lat = 10e-3
 eta_decay = 0.98
 
 [pattern_params]
-pattern_duration = 100.0
-pattern_dt = 0.25
-noise_sigma = 1.0
-noise_tau = 1
-non_markov = 3
+pattern_duration = 40.0
+pattern_dt = 15.0
+noise_sigma = 0.0
+noise_tau = 0.0
+non_markov = 12
+non_markov_type = "copied"
 
 [replay_params]
 partial_replay = false

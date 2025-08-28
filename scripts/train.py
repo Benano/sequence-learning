@@ -7,7 +7,13 @@ import numpy as np
 from tqdm import tqdm
 from utils import load_pattern_flexible
 
-from elise.data import Dataloader, MultiPatternDataloader, RandomPattern
+from elise.data import (
+    Dataloader,
+    MultiPatternDataloader,
+    RandomCopiedNonMarkovianPattern,
+    RandomPattern,
+    RandomSampledNonMarkovianPattern,
+)
 from elise.data_transforms import ColorNotes, CorrelatedNoise, Silence, WhiteNoise
 from elise.model import Network, eq_phi  # noqa
 from elise.optimizer import SimpleUpdater
@@ -29,15 +35,35 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     patterns = []
     for pattern_name in experiment_params.patterns:
         if pattern_name == "random":
-            pattern_rng = copy.deepcopy(rng)
-            pattern = RandomPattern(
-                width=network_params.num_vis,
-                duration=pattern_params.pattern_duration,
-                rng=pattern_rng,
-                dt=pattern_params.pattern_dt,
-            )
-            patterns.append(pattern)
-
+            if pattern_params.non_markov_type == "none":
+                pattern_rng = copy.deepcopy(rng)
+                pattern = RandomPattern(
+                    width=network_params.num_vis,
+                    duration=pattern_params.pattern_duration,
+                    rng=pattern_rng,
+                    dt=pattern_params.pattern_dt,
+                )
+                patterns.append(pattern)
+            elif pattern_params.non_markov_type == "sampled":
+                pattern_rng = copy.deepcopy(rng)
+                pattern = RandomSampledNonMarkovianPattern(
+                    width=network_params.num_vis,
+                    duration=pattern_params.pattern_duration,
+                    rng=pattern_rng,
+                    dt=pattern_params.pattern_dt,
+                    nmk=pattern_params.non_markov,
+                )
+                patterns.append(pattern)
+            elif pattern_params.non_markov_type == "copied":
+                pattern_rng = copy.deepcopy(rng)
+                pattern = RandomCopiedNonMarkovianPattern(
+                    width=network_params.num_vis,
+                    duration=pattern_params.pattern_duration,
+                    rng=pattern_rng,
+                    dt=pattern_params.pattern_dt,
+                    nmk=pattern_params.non_markov,
+                )
+                patterns.append(pattern)
         else:
             pattern_file = pattern_path / f"{pattern_name}.txt"
             pattern = load_pattern_flexible(

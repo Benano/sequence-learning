@@ -54,6 +54,7 @@ class PatternConfig:
     noise_sigma: float = 1.0
     noise_tau: float = 1
     non_markov: int = 3
+    non_markov_type: str = "none"
 
 
 @dataclass(slots=True)
