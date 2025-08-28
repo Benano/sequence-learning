@@ -207,7 +207,7 @@ class RandomSampledNonMarkovianPattern(BasePattern):
 
 
 class RandomCopiedNonMarkovianPattern(BasePattern):
-    def __init__(self, duration, width, rng, dt: float = 1.0, non_markoviannes=2):
+    def __init__(self, duration, width, rng, dt: float = 1.0, nmk=2):
         self.nr_notes = int(duration)
         self.width = width
         self.dt = dt
@@ -225,14 +225,14 @@ class RandomCopiedNonMarkovianPattern(BasePattern):
             result = (random_vals < c_probs).astype(int)
             pattern[i + 1] = result
 
-        index_first_proportion = int(len(pattern) * 0.1)
+        index_first_proportion = int(len(pattern) * 0.0)
         non_markov_chunk = pattern[
-            index_first_proportion : index_first_proportion + non_markoviannes, :
+            index_first_proportion : index_first_proportion + nmk, :
         ]
 
         index_last_proportion = int(len(pattern) * 0.5)
         pattern[
-            index_last_proportion : index_last_proportion + non_markoviannes, :
+            index_last_proportion : index_last_proportion + nmk, :
         ] = non_markov_chunk
 
         super().__init__(pattern=pattern, dt=dt)
