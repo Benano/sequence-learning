@@ -161,27 +161,6 @@ def plot_activity_match(replay_output, epoch_len, target):
     return fig
 
 
-def plot_losses(replay_loss, val_loss, training_cycles, replay_cycles):
-    fig, axs = plt.subplots(1, 2, figsize=(8, 4), sharey=True)
-
-    # each element in the list comprises one set of training cycles
-    x = np.linspace(0, len(val_loss) * training_cycles, len(val_loss))
-    axs[0].plot(x, val_loss)
-    axs[0].set_title("Validation loss")
-    axs[0].set_xlabel("Training cycles")
-
-    axs[1].plot(replay_loss)
-    x = np.linspace(0, len(replay_loss) * replay_cycles, len(val_loss))
-    axs[1].set_title("Replay loss")
-    axs[1].set_xlabel("Replay cycles")
-
-    axs[0].set_ylabel("MSE Loss")
-
-    plt.tight_layout()
-
-    return fig
-
-
 def plot_principal_components(u_latent, target):
     from sklearn.decomposition import PCA
     from sklearn.preprocessing import StandardScaler
@@ -231,19 +210,27 @@ def save_fig(fig, name, path, neptune_run, dpi=300):
     print(f"Saved figure {name} to {path}")
 
 
+def load_pkl(path):
+    import pickle
+
+    with open(path, "rb") as f:
+        data = pickle.load(f)
+    return data
+
+
 def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     from elise.config import FullConfig
-    from elise.tracker import Tracker
 
-    train = Tracker.load(artifact_path / "train_tracker.pkl")
-    val = Tracker.load(artifact_path / "validation_tracker.pkl")
-    replay = Tracker.load(artifact_path / "replay_tracker.pkl")
+    train = load_pkl(artifact_path / "train_dict.pkl")
+    val = load_pkl(artifact_path / "validation_dict.pkl")
+    replay = load_pkl(artifact_path / "replay_dict.pkl")
 
     full_config = FullConfig(run_path / "config.toml")
     sim_params = full_config.simulation_params
+    pattern_params = full_config.pattern_params
     track_params = full_config.tracking_params
 
-    pattern_duration = sim_params.pattern_duration * sim_params.pattern_dt
+    pattern_duration = pattern_params.pattern_duration * pattern_params.pattern_dt
     dt = sim_params.dt
     sim_step = track_params.sim_step
 
@@ -252,7 +239,6 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     replay_output = replay["u_visible"][: last_train * 4]
 
     last_train = int(pattern_duration / dt / sim_step)
-    last_val = 2 * int(pattern_duration / dt / sim_step)
     first_replay = 1 * int(pattern_duration / dt / sim_step)
 
     train_output = train["u_visible"][-last_train:].T
@@ -260,7 +246,7 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     train_target = train["u_inp_visible"][-last_train:].T
     dpi = 300
     start_time = (
-        sim_params.pattern_duration
+        pattern_params.pattern_duration
         * (sim_params.training_cycles - 1)
         * sim_params.training_epochs
     )
@@ -273,7 +259,6 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
 
     first_replay = 2 * int(pattern_duration / dt / sim_step)
     train_output = train["r_visible"][-last_train:].T
-    val_output = val["r_visible"][-last_val:].T
     replay_output = replay["r_visible"][:first_replay].T
     train_target = val["r_target"][0].T
     # hidden_activity = train["r_latent"][-last_train:].T
@@ -284,7 +269,7 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     save_fig(fig, "PCA.png", figure_path, neptune_run)
 
     start_time = (
-        sim_params.pattern_duration
+        pattern_params.pattern_duration
         * (sim_params.training_cycles - 1)
         * sim_params.training_epochs
     )
@@ -298,17 +283,6 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     epoch_len = int(pattern_duration / dt / sim_step)
     fig = plot_activity_match(replay_output, epoch_len, train_target)
     save_fig(fig, "activity_match_replay.png", figure_path, neptune_run, dpi)
-
-    replay_loss = replay["mse_loss_r"].T
-    val_loss = val["mse_loss_r"].T
-
-    fig = plot_losses(
-        replay_loss,
-        val_loss,
-        training_cycles=sim_params.training_cycles,
-        replay_cycles=sim_params.replay_cycles,
-    )
-    save_fig(fig, "losses.png", figure_path, neptune_run, dpi)
 
     dpi = 100
     gif = False
