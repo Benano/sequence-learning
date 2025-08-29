@@ -6,7 +6,7 @@ group_tag = 'non-markvo-test'
 pre_transforms = ['to_biounits'] # ORDER MATTERS GREATLY
 
 [network_params]
-num_lat = 100
+num_lat = 60
 num_vis = 10
 
 [weight_params]
@@ -23,7 +23,7 @@ d_int = 15
 
 [simulation_params]
 dt = 0.1
-training_epochs = 25
+training_epochs = 100
 replay_epochs = 50
 training_cycles = 25
 validation_cycles = 2
@@ -33,12 +33,12 @@ eta_lat = 10e-3
 eta_decay = 0.98
 
 [pattern_params]
-pattern_duration = 40.0
+pattern_duration = 20.0
 pattern_dt = 15.0
 noise_sigma = 0.0
 noise_tau = 0.0
-non_markov = 12
-non_markov_type = "copied"
+non_markov = 6
+non_markov_type = "sampled"
 
 [replay_params]
 partial_replay = false

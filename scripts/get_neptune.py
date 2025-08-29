@@ -154,50 +154,50 @@ def get_neptune_losses_scan(
 
 if __name__ == "__main__":
     # Get the losses for a scan of runs with different parameters
-    # param1_name = "pattern_duration"
-    # param1_values = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]
+    param1_name = "non_markov"
+    param1_values = np.arange(3, 25, 3)
 
     # param1_name = "num_vis"
     # param1_values = [40, 60, 80, 100, 120, 140, 160, 180]
 
-    # param2_name = "num_lat"
-    # param2_values = [40, 60, 80, 100, 120, 140, 160, 180]
+    param2_name = "num_lat"
+    param2_values = [60, 80, 100, 120, 140, 160, 180, 200]
 
-    # seeds = [1, 2, 3, 4, 5]  # run these seeds serially for each param combo
+    seeds = [1, 2, 3, 4, 5]  # run these seeds serially for each param combo
 
-    # # project_name = "Elise-scans-width"
     # project_name = "Elise-scans-width"
-    # tag = "random_scan_width"
+    project_name = "Elise-scans"
+    tag = "nonmarkov-vs-numlat"
 
-    # get_neptune_losses_scan(
-    #     project_name=project_name,
-    #     tag=tag,
-    #     param1_name=param1_name,
-    #     param1_values=param1_values,
-    #     param2_name=param2_name,
-    #     param2_values=param2_values,
-    # )
-
-    artifact_names = [
-        "replay_loss_r",
-        # "replay_loss_pat_0",
-        # "replay_loss_pat_1",
-        "validation_loss_r",
-        # "validation_loss_pat_0",
-        # "validation_loss_pat_1",
-    ]
-
-    tag_names = [f"noise_{s}_100" for s in [2, 4, 8]]
-
-    get_multi_run_group_tag(
-        project_name="Elise-noise",
-        tag_names=tag_names,
-        artifact_names=artifact_names,
-        save_loc=Path(
-            "/Users/benano/Documents/org/manuscripts/SequenceLearningPaper/data/noise/"
-        ),
+    get_neptune_losses_scan(
+        project_name=project_name,
+        tag=tag,
+        param1_name=param1_name,
+        param1_values=param1_values,
+        param2_name=param2_name,
+        param2_values=param2_values,
     )
 
-    # # Get the losses for a specific run group tag
-    # tag_name = "reignition_short_gap"
-    # save_loc = Path(f"/Users/benano/Documents/org/manuscripts/SequenceLearningPaper/data/reignition_gap/")
+    # artifact_names = [
+    #     "replay_loss_r",
+    #     # "replay_loss_pat_0",
+    #     # "replay_loss_pat_1",
+    #     "validation_loss_r",
+    #     # "validation_loss_pat_0",
+    #     # "validation_loss_pat_1",
+    # ]
+
+    # tag_names = [f"noise_{s}_100" for s in [2, 4, 8]]
+
+    # get_multi_run_group_tag(
+    #     project_name="Elise-noise",
+    #     tag_names=tag_names,
+    #     artifact_names=artifact_names,
+    #     save_loc=Path(
+    #         "/Users/benano/Documents/org/manuscripts/SequenceLearningPaper/data/noise/"
+    #     ),
+    # )
+
+    # # # Get the losses for a specific run group tag
+    # # tag_name = "reignition_short_gap"
+    # # save_loc = Path(f"/Users/benano/Documents/org/manuscripts/SequenceLearningPaper/data/reignition_gap/")
