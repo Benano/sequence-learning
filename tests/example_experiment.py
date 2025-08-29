@@ -29,6 +29,7 @@ def main(path, artifacts_path):
     neuron_params = full_config.neuron_params
     network_params = full_config.network_params
     simulation_params = full_config.simulation_params
+    pattern_params = full_config.pattern_params
     weight_params = full_config.weight_params
     track_params = full_config.tracking_params
 
@@ -59,21 +60,19 @@ def main(path, artifacts_path):
 
     pattern = MultiHotPattern(
         pattern=elise,
-        duration=simulation_params.pattern_duration,
+        duration=pattern_params.pattern_duration,
     )
     loader = Dataloader(pattern, pre_transforms=[to_biounits])
     u_target = loader.get_full_pattern(dt)
 
     # Sim params
     training_duration = (
-        simulation_params.training_cycles * simulation_params.pattern_duration
+        simulation_params.training_cycles * pattern_params.pattern_duration
     )
     validation_duration = (
-        simulation_params.validation_cycles * simulation_params.pattern_duration
+        simulation_params.validation_cycles * pattern_params.pattern_duration
     )
-    replay_duration = (
-        simulation_params.replay_cycles * simulation_params.pattern_duration
-    )
+    replay_duration = simulation_params.replay_cycles * pattern_params.pattern_duration
 
     # Sim Trackers
     train_tracker = Tracker(track_params.vars_train, track_params.sim_step)

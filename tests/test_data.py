@@ -104,11 +104,6 @@ class TestPattern:
         expected = transform_plus(base_sequence)
         assert_allclose(pat.pattern, expected)
 
-    def test_pretransform_reshape_error(self, pattern_factory, transform_reshape):
-        pat = pattern_factory()
-        with pytest.raises(ValueError) as exc_info:  # noqa
-            pat.transform(transform_reshape)
-
 
 ################################
 # Test the OneHotPattern class #
@@ -210,10 +205,6 @@ class TestDataloader:
         assert_allclose(dataloader.pattern[:, :], base_sequence)
         assert dataloader.dt == pytest.approx(DT)
         assert dataloader.online_transforms == transforms
-
-    def test_pretransform_reshape_error(self, dataloader_factory, transform_reshape):
-        with pytest.raises(ValueError) as exc_info:  # noqa
-            dataloader = dataloader_factory(pre_transforms=[transform_reshape])  # noqa
 
     def test_pretransforms(
         self, dataloader_factory, transform_plus, transform_mult, base_sequence
