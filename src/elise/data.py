@@ -99,9 +99,10 @@ class BasePattern(ABC):
         """
         self.pattern = transformation(self.pattern)
         if self.shape != self.pattern.shape:
-            raise ValueError(
-                "The transformation {transform} may not change the shape of the pattern!"  # noqa
+            raise Warning(
+                "The shape of the pattern changed after applying the transformation."
             )
+        self.shape = self.pattern.shape
 
     def __repr__(self) -> str:
         """
