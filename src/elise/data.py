@@ -98,11 +98,8 @@ class BasePattern(ABC):
         At the moment, the transformation takes only a pattern, no other arguments.
         """
         self.pattern = transformation(self.pattern)
-        if self.shape != self.pattern.shape:
-            raise Warning(
-                "The shape of the pattern changed after applying the transformation."
-            )
         self.shape = self.pattern.shape
+        self.width = self.pattern.shape[-1]
 
     def __repr__(self) -> str:
         """
@@ -468,16 +465,17 @@ class DiscreteDataloader(BaseDataloader):
         :type online_transforms: List[Callable], optional
         :raises ValueError: If a pre-transform changes the shape of the pattern
         """
+
         self.pattern = pattern
+        # apply pre-transforms directly once
+        for transform in pre_transforms:
+            self.pattern.transform(transform)
+
         self.duration = self.pattern.duration
         self.dt = self.pattern.dt
         self.width = self.pattern.width
         self.online_transforms = online_transforms
         self.apply_online_transforms = 1
-
-        # apply pre-transforms directly once
-        for transform in pre_transforms:
-            self.pattern.transform(transform)
 
     def _time_to_idx(self, t: float) -> int:
         return int((t % self.duration) / self.dt)

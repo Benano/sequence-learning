@@ -14,7 +14,13 @@ from elise.data import (
     RandomPattern,
     RandomSampledNonMarkovianPattern,
 )
-from elise.data_transforms import ColorNotes, CorrelatedNoise, Silence, WhiteNoise
+from elise.data_transforms import (
+    ChunkSplit,
+    ColorNotes,
+    CorrelatedNoise,
+    Silence,
+    WhiteNoise,
+)
 from elise.model import Network, eq_phi  # noqa
 from elise.optimizer import SimpleUpdater
 from elise.rate_buffer import Buffer
@@ -84,6 +90,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         "harder_softer": harder_softer,
         "color": ColorNotes(),
         "silence": Silence(),
+        "chunk_split": ChunkSplit(num_chunks=3),
     }
 
     pre_transforms = []
@@ -129,7 +136,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     ax.set_title("Input Pattern")
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
-    plt.show()
+    # plt.show()
 
     if neptune_run:
         neptune_run["pattern"].upload(fig)

@@ -40,6 +40,30 @@ class ColorNotes:
         return colored
 
 
+class ChunkSplit:
+    def __init__(self, num_chunks=5):
+        self.num_chunks = num_chunks
+
+    def __call__(self, x):
+        len_x = x.shape[0]
+        width_x = x.shape[1]
+        new_pat = np.zeros((len_x, self.num_chunks * width_x))
+
+        chunk_start_idx = np.array(
+            np.linspace(0, len_x, self.num_chunks + 1), dtype=int
+        )
+
+        for i in range(self.num_chunks):
+            row_start = width_x * i
+            row_end = width_x * (i + 1)
+            column_start = chunk_start_idx[i]
+            column_end = chunk_start_idx[i + 1]
+            chunk = x[column_start:column_end, :]
+            new_pat[column_start:column_end, row_start:row_end] = chunk
+
+        return new_pat
+
+
 class CorrelatedNoise:
     def __init__(self, sigma, tau, dt):
         self.sigma = sigma
