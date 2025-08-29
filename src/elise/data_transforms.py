@@ -40,6 +40,33 @@ class ColorNotes:
         return colored
 
 
+class AddNothing:
+    def __init__(self, nothing=1):
+        self.noithing = nothing
+
+    def __call__(self, x):
+        len_x = x.shape[0]
+        nothing = np.zeros((len_x, self.noithing))
+        x = np.hstack((x, nothing))
+
+        return x
+
+
+class ChunkStep:
+    def __init__(self):
+        self.current_step = 0
+
+    def __call__(self, x):
+        len_x = x.shape[0]  # Number of rows in input
+        width_x = x.shape[1]  # Number of columns in input
+        new_pat = np.zeros((len_x, len_x + width_x - 1))
+
+        for i in range(len_x):
+            new_pat[i, i : i + width_x] = x[i, :]
+
+        return new_pat
+
+
 class ChunkSplit:
     def __init__(self, num_chunks=5):
         self.num_chunks = num_chunks
@@ -115,10 +142,9 @@ class Silence:
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    # Test silence on 10 x 100 random values
-    silence_transform = Silence(proportion=0.5)
+    nothing_transform = ChunkStep()
     test_data = np.random.rand(20, 10)
-    transformed_data = silence_transform(test_data)
+    transformed_data = nothing_transform(test_data)
 
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
     ax[0].imshow(test_data.T, aspect="auto", cmap="viridis")

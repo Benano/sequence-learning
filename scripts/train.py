@@ -15,7 +15,9 @@ from elise.data import (
     RandomSampledNonMarkovianPattern,
 )
 from elise.data_transforms import (
+    AddNothing,
     ChunkSplit,
+    ChunkStep,
     ColorNotes,
     CorrelatedNoise,
     Silence,
@@ -91,6 +93,8 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         "color": ColorNotes(),
         "silence": Silence(),
         "chunk_split": ChunkSplit(num_chunks=3),
+        "chunk_step": ChunkStep(),
+        "nothing": AddNothing(50),
     }
 
     pre_transforms = []
@@ -136,7 +140,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     ax.set_title("Input Pattern")
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
-    # plt.show()
+    plt.show()
 
     if neptune_run:
         neptune_run["pattern"].upload(fig)
