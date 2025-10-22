@@ -31,6 +31,18 @@ from elise.tracker import Tracker
 from elise.weights import DendriticWeights, SomaticWeights
 
 
+def remove_intervis_weights(network, dataloader):
+    # # Remove weights between input populations if multiple patterns
+    # widths = dataloader.widths
+    # # pat1 to pat2
+    # network.dendritic_weights[
+    #     widths[0]: widths[0] + widths[1], 0:widths[0]] = 0.0
+    # # pat2 to pat1
+    # network.dendritic_weights[
+    #     0:widths[0], widths[0]: widths[0] + widths[1]] = 0.0
+    pass
+
+
 def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     experiment_params = full_config.experiment_params
     neuron_params = full_config.neuron_params
@@ -140,7 +152,6 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     ax.set_title("Input Pattern")
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
-    plt.show()
 
     if neptune_run:
         neptune_run["pattern"].upload(fig)
@@ -201,6 +212,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         # Add learning rate decay
         network.optimizer_vis.eta *= simulation_params.eta_decay
         network.optimizer_lat.eta *= simulation_params.eta_decay
+        remove_intervis_weights(network, dataloader)
 
         # Validation
         if epoch != simulation_params.training_epochs - 1:
@@ -216,6 +228,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
             mse_loss_r = compute_loss(r_out, r_target, mse)
 
             if isinstance(dataloader, MultiPatternDataloader):
+                remove_intervis_weights(network, dataloader)
                 widths = dataloader.widths
                 c_width = 0
                 for i in range(len(patterns)):
@@ -282,6 +295,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
             neptune_run["replay_loss_r"].append(mse_loss_r)
 
         if isinstance(dataloader, MultiPatternDataloader):
+            remove_intervis_weights(network, dataloader)
             widths = dataloader.widths
             c_width = 0
             for i in range(len(patterns)):
@@ -299,6 +313,27 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
     replay_tracker.store("losses", losses)
     replay_tracker.store("r_target", r_target)
+
+    # plot dendritica and somatic weights
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    im1 = axes[0].imshow(
+        network.dendritic_weights,
+        aspect="auto",
+        cmap="viridis",
+        interpolation="none",
+    )
+    axes[0].set_title("Dendritic Weights")
+    plt.colorbar(im1, ax=axes[0])
+    im2 = axes[1].imshow(
+        network.somatic_weights,
+        aspect="auto",
+        cmap="viridis",
+        interpolation="none",
+    )
+    axes[1].set_title("Somatic Weights")
+    plt.colorbar(im2, ax=axes[1])
+    if neptune_run:
+        neptune_run["final_weights"].upload(fig)
 
     return (
         network,

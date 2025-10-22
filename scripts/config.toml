@@ -1,13 +1,13 @@
 [experiment_params]
 neptune_project = "Elise-tests"
 seed = 42
-patterns = ['random']
-group_tag = 'non-markvo-test'
+patterns = ['Prelude1', 'Prelude2']
+group_tag = 'Multipat'
 pre_transforms = ['to_biounits'] # ORDER MATTERS GREATLY
 
 [network_params]
 num_lat = 100
-num_vis = 10
+num_vis = 25
 
 [weight_params]
 p = 0.2
@@ -33,8 +33,8 @@ eta_lat = 10e-3
 eta_decay = 0.98
 
 [pattern_params]
-pattern_duration = 40.0
-pattern_dt = 15.0
+pattern_duration = 375.0
+pattern_dt = 1.0
 noise_sigma = 0.0
 noise_tau = 0.0
 non_markov = 12
