@@ -737,7 +737,7 @@ class MultiPatternDataloader(BaseDataloader):
         """
         return [dl.get_full_pattern(dt) for dl in self.dataloaders]
 
-    def get_full_pattern(self, dt: float, concat=True):
+    def get_full_pattern(self, dt: float, concat=True, online_transforms=False):
         if concat:
             full_pattern = np.array(
                 [pattern for _, pattern in self.iter(0, self.duration, dt)]
