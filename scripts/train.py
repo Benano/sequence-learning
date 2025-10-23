@@ -167,7 +167,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     ]
     r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
 
-    u_target_real = dataloader.get_full_pattern(dt, online_transforms=True)[
+    u_target_real = dataloader.get_full_pattern(dt, num=10, online_transforms=True)[
         :: track_params.sim_step
     ]
     r_target_real = eq_phi(u_target_real, neuron_params.a, neuron_params.b)
