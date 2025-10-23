@@ -535,11 +535,15 @@ class DiscreteDataloader(BaseDataloader):
             yield t, self.__call__(t, offset=dt * 0.01)
             t += dt
 
-    def get_full_pattern(self, dt, online_transforms=True):
+    def get_full_pattern(self, dt, num=1, online_transforms=True):
         """Return the full pattern."""
         """
         :param dt: Simulation time step
         :type dt: float
+        :param num: Number of patterns repetitions
+        :type dt: int
+        :param online_transforms: Simulation time step
+        :type dt: bool
         :return: Full pattern
         :rtype: npt.NDArray
         """
@@ -548,8 +552,9 @@ class DiscreteDataloader(BaseDataloader):
             self.apply_online_transforms = 0
 
         full_pattern = []
-        for _, pattern in self.iter(0, self.duration, dt):
-            full_pattern.append(pattern)
+        for _ in range(num):
+            for _, pattern in self.iter(0, self.duration, dt):
+                full_pattern.append(pattern)
 
         self.apply_online_transforms = 1  # reset to default
 
