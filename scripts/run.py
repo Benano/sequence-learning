@@ -51,7 +51,7 @@ def make_debug_sim_params(simulation_params):
     simulation_params.training_cycles = 2
     simulation_params.training_epochs = 2
     simulation_params.replay_cycles = 2
-    simulation_params.replay_epochs = 2
+    simulation_params.replay_epochs = 5
 
     return simulation_params
 

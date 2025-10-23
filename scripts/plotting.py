@@ -242,7 +242,7 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     first_replay = 1 * int(pattern_duration / dt / sim_step)
 
     train_output = train["u_visible"][-last_train:].T
-    replay_output = replay["u_visible"][:first_replay].T
+    replay_output = replay["u_visible"][: first_replay * 5].T
     train_target = train["u_inp_visible"][-last_train:].T
     dpi = 300
     start_time = (
@@ -267,17 +267,6 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     latent_activity = replay["r_latent"][-2 * last_train :].T
     fig = plot_principal_components(latent_activity, target=train_target.T)
     save_fig(fig, "PCA.png", figure_path, neptune_run)
-
-    start_time = (
-        pattern_params.pattern_duration
-        * (sim_params.training_cycles - 1)
-        * sim_params.training_epochs
-    )
-    step = sim_params.dt * track_params.sim_step
-    fig = plot_activity_target_match(
-        train_output, replay_output, train_target, start_time, step
-    )
-    save_fig(fig, "activity_match.png", figure_path, neptune_run, dpi)
 
     replay_output = replay["r_visible"][:first_replay].T
     epoch_len = int(pattern_duration / dt / sim_step)
