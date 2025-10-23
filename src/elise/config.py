@@ -59,6 +59,7 @@ class PatternConfig:
 
 @dataclass(slots=True)
 class ReplayConfig:
+    disruption: float = 0
     partial_replay: bool = False
     replay_learning: bool = False
 

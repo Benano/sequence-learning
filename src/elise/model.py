@@ -68,6 +68,15 @@ class Network:
 
         self.dt = None
 
+    def set_visible_activity(self, activity: int):
+        """
+        Set the activity of the visible neurons.
+
+        :param activity: Activity to set the visible neurons to.
+        :type activity: int
+        """
+        self.u[self.view_visible] = activity
+
     def reset_activity(self):
         """
         Reset the activity of the network to the resting state.

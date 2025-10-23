@@ -41,6 +41,7 @@ non_markov = 12
 non_markov_type = "copied"
 
 [replay_params]
+disruption = -70
 partial_replay = false
 replay_learning = true
 

@@ -140,7 +140,6 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     ax.set_title("Input Pattern")
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
-    plt.show()
 
     if neptune_run:
         neptune_run["pattern"].upload(fig)
@@ -257,16 +256,20 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     losses = defaultdict(list)
 
     replay_network = copy.deepcopy(network)
+    disruption = replay_params.disruption
 
     for epoch in tqdm(range(simulation_params.replay_epochs)):
         for t in np.arange(0, replay_duration, simulation_params.dt):
+            if disruption != 0 and epoch == 0 and t > dataloader.duration:
+                replay_network.set_visible_activity(disruption)
+            else:
+                pass
+
             if replay_params.partial_replay and epoch == 1:
                 u_inp = copy.deepcopy(replay_network.get_val("u", "visible"))
                 u_tar = dataloader(t)[:first]
                 u_inp[:first] = u_tar
-
                 replay_network(u_inp=u_inp, learn=replay_params.replay_learning)
-
             else:
                 replay_network(u_inp=None, learn=replay_params.replay_learning)
 
