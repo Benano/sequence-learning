@@ -196,7 +196,6 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
                 first_patterns = 5 * dataloader.duration
                 if t < first_patterns and t > dataloader.duration:
                     train_tracker.track(network, c_t)
-                    breakpoint()
             else:
                 if epoch > nr_epochs - 1 and t > training_duration - (
                     2 * dataloader.duration
