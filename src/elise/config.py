@@ -83,6 +83,7 @@ class NeuronConfig:
 @dataclass(slots=True)
 class TrackingConfig:
     sim_step: int = 2
+    track_training: bool = True
     vars_train: list = field(default_factory=list)
     vars_epoch: list = field(default_factory=list)
     vars_replay: list = field(default_factory=list)

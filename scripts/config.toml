@@ -61,6 +61,7 @@ lam = 0.7
 
 [tracking_params]
 sim_step = 4
+track_training = true
 
 vars_train = [
   ["u", "visible" ],
