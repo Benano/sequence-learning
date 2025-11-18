@@ -43,11 +43,13 @@ def get_single_run(project_name, run_id, path):
         project=f"elise-neurotma/{project_name}", with_id=run_id, mode="read-only"
     )
     c_run["network"].download(destination=str(path / "network.pkl"))
-    c_run["network"].download(destination=str(path / "network.pkl"))
     c_run["dataloader"].download(destination=str(path / "dataloader.pkl"))
     save_loc_config = path / "config.toml"
     c_run["parameters/config"].download(destination=str(save_loc_config))
-    # Write a text file with the run_id to path
+    c_run["train_dict"].download(destination=str(path / "train_dict.pkl"))
+    c_run["validation_dict"].download(destination=str(path / "validation_dict.pkl"))
+    c_run["replay_dict"].download(destination=str(path / "replay_dict.pkl"))
+
     with open(path / "run_id.txt", "w") as f:
         f.write(run_id)
 
@@ -187,16 +189,30 @@ if __name__ == "__main__":
         # "validation_loss_pat_1",
     ]
 
-    tag_names = [f"noise_{s}_100" for s in [2, 4, 8]]
+    # tag_names = [f"noise_{s}_100" for s in [2, 4, 8]]
+
+    project_name = "Elise-noise"
+    tag_names = [
+        "noisy_8_ye",
+    ]
 
     get_multi_run_group_tag(
-        project_name="Elise-noise",
+        project_name=project_name,
         tag_names=tag_names,
         artifact_names=artifact_names,
         save_loc=Path(
+            # "/Users/benano/Documents/code/sequence-learning/scripts/plots/data/showoff/")
             "/Users/benano/Documents/org/manuscripts/SequenceLearningPaper/data/noise/"
         ),
     )
+
+    # get_single_run(
+    #     project_name="Elise-tests",
+    #     run_id="ET-119",
+    #     path=Path(
+    #         "/Users/benano/Documents/code/sequence-learning/scripts/plots/dynamics/"
+    #     ),
+    # )
 
     # # Get the losses for a specific run group tag
     # tag_name = "reignition_short_gap"
