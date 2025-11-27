@@ -36,8 +36,8 @@ def main(path, artifacts_path):
     # Network
     rate_buffer = Buffer
     rng = np.random.default_rng(42)
-    dendritic_weights = DendriticWeights(weight_params, rng=rng)
-    somatic_weights = SomaticWeights(weight_params, rng=rng)
+    dendritic_weights = DendriticWeights(weight_params, rng_d=rng, rng_w=rng)
+    somatic_weights = SomaticWeights(weight_params, rng_d=rng, rng_w=rng)
     network = Network(
         network_params, neuron_params, dendritic_weights, somatic_weights, rate_buffer
     )

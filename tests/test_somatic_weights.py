@@ -6,7 +6,7 @@ from elise.weights import SomaticWeights
 
 def test_create_weight_matrix_basic(default_weight_config, default_network_config):
     rng = np.random.default_rng(42)
-    sw = SomaticWeights(default_weight_config, rng=rng)
+    sw = SomaticWeights(default_weight_config, rng_d=rng, rng_w=rng)
     weight_matrix, _ = sw(
         default_network_config.num_vis, default_network_config.num_lat
     )
@@ -19,7 +19,7 @@ def test_create_weight_matrix_basic(default_weight_config, default_network_confi
 
 def test_connectivity_constraints(default_weight_config, default_network_config):
     rng = np.random.default_rng(42)
-    sw = SomaticWeights(default_weight_config, rng=rng)
+    sw = SomaticWeights(default_weight_config, rng_d=rng, rng_w=rng)
     weight_matrix, _ = sw(
         default_network_config.num_vis, default_network_config.num_lat
     )
@@ -32,9 +32,9 @@ def test_connectivity_constraints(default_weight_config, default_network_config)
 
 def test_consistency(default_weight_config, default_network_config):
     rng = np.random.default_rng(42)
-    sw1 = SomaticWeights(default_weight_config, rng=rng)
+    sw1 = SomaticWeights(default_weight_config, rng_d=rng, rng_w=rng)
     rng = np.random.default_rng(42)
-    sw2 = SomaticWeights(default_weight_config, rng=rng)
+    sw2 = SomaticWeights(default_weight_config, rng_d=rng, rng_w=rng)
     matrix1, _ = sw1(default_network_config.num_vis, default_network_config.num_lat)
     matrix2, _ = sw2(default_network_config.num_vis, default_network_config.num_lat)
     np.testing.assert_allclose(matrix1, matrix2)
