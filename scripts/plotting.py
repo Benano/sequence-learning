@@ -5,6 +5,8 @@ from matplotlib import animation
 from matplotlib.animation import PillowWriter
 from matplotlib.collections import LineCollection
 
+# def plot_weights_simple(weight_matrix):
+
 
 def plot_activity_in_time(train_output, replay_output, dt):
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
@@ -218,12 +220,55 @@ def load_pkl(path):
     return data
 
 
+def plot_weights(epoch_tracker):
+    # plot of the weights across time
+    weights = epoch_tracker["dendritic_weights_all"]
+    weights = np.array(weights)
+
+    # flatten weights (time, neurons, neurons) to 2D
+    n_time, n_neurons, _ = weights.shape
+    weights_flat = weights.reshape(n_time, n_neurons * n_neurons)
+
+    # Plot with 3 stacked subplots
+    # 1st showing raw weights
+    # 2nd showing summed positive and negative weights
+    # 3rd showing amount of weight change compared to previous time step
+    mean_weights = np.mean(weights_flat, axis=1)
+
+    fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
+    axes[0].plot(weights_flat)
+    axes[0].plot(mean_weights, color="black", linestyle="--", label="Mean Weights")
+    axes[0].set_title("Dendritic Weights Over Time")
+    axes[0].set_ylabel("Weight Value")
+    axes[0].set_xlabel("Time Step")
+    # 2nd subplot
+    sum_positive = np.sum(weights_flat * (weights_flat > 0), axis=1)
+    sum_negative = np.sum(weights_flat * (weights_flat < 0), axis=1)
+    sum_all = np.sum(weights_flat, axis=1)
+    axes[1].plot(sum_positive, label="Sum Positive Weights", color="red")
+    axes[1].plot(sum_negative, label="Sum Negative Weights", color="blue")
+    axes[1].plot(sum_all, label="Mean Weights", color="black", linestyle="--")
+    axes[1].set_title("Sum of Positive and Negative Weights Over Time")
+    axes[1].set_ylabel("Sum of Weights")
+    axes[1].legend()
+    # 3rd subplot
+    weight_change = np.linalg.norm(np.diff(weights_flat, axis=0), axis=1)
+    axes[2].plot(weight_change, color="green")
+    axes[2].set_title("Weight Change Over Time")
+    axes[2].set_ylabel("Weight Change (L2 Norm)")
+    axes[2].set_xlabel("Time Step")
+    plt.tight_layout()
+
+    return fig
+
+
 def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     from elise.config import FullConfig
 
     train = load_pkl(artifact_path / "train_dict.pkl")
     val = load_pkl(artifact_path / "validation_dict.pkl")
     replay = load_pkl(artifact_path / "replay_dict.pkl")
+    epoch = load_pkl(artifact_path / "epoch_dict.pkl")
 
     full_config = FullConfig(run_path / "config.toml")
     sim_params = full_config.simulation_params
@@ -264,14 +309,17 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     # hidden_activity = train["r_latent"][-last_train:].T
 
     # PCA
-    latent_activity = replay["r_latent"][-2 * last_train :].T
-    fig = plot_principal_components(latent_activity, target=train_target.T)
-    save_fig(fig, "PCA.png", figure_path, neptune_run)
+    # latent_activity = replay["r_latent"][-2 * last_train :].T
+    # fig = plot_principal_components(latent_activity, target=train_target.T)
+    # save_fig(fig, "PCA.png", figure_path, neptune_run)
 
     replay_output = replay["r_visible"][:first_replay].T
     epoch_len = int(pattern_duration / dt / sim_step)
     fig = plot_activity_match(replay_output, epoch_len, train_target)
     save_fig(fig, "activity_match_replay.png", figure_path, neptune_run, dpi)
+
+    fig = plot_weights(epoch)
+    save_fig(fig, "weights_over_time.png", figure_path, neptune_run, dpi)
 
     dpi = 100
     gif = False
@@ -298,7 +346,7 @@ if __name__ == "__main__":
         run_id = f.read().strip()
 
     neptune_run = neptune.init_run(
-        project="elise-neurotma/ELiSe",
+        project="elise-neurotma/Elise-tests",
         custom_run_id=run_id,
         name=path.name,
         tags=full_config.experiment_params.patterns,

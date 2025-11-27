@@ -25,10 +25,10 @@ class WeightConfig:
     p: float = 0.5
     q: float = 0.3
     p0: float = 0.1
-    W_vis_vis: tuple = (0.0, 0.5)
-    W_vis_lat: tuple = (0.0, 0.5)
-    W_lat_lat: tuple = (0.0, 0.5)
-    W_lat_vis: tuple = (0.0, 0.5)
+    W_vis_vis: Tuple[float, float] = (0.0, 0.5)
+    W_vis_lat: Tuple[float, float] = (0.0, 0.5)
+    W_lat_lat: Tuple[float, float] = (0.0, 0.5)
+    W_lat_vis: Tuple[float, float] = (0.0, 0.5)
     d_den: Tuple[int, int] = (5, 15)
     d_som: Tuple[int, int] = (5, 15)
     d_int: int = 25
