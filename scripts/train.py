@@ -128,9 +128,6 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
             online_transforms=online_transforms,
         )
 
-    # Set seed to experiment_params.seed
-    np.random.seed(experiment_params.seed)
-
     import matplotlib.pyplot as plt
 
     # Create imshow of pattern
@@ -144,14 +141,50 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     if neptune_run:
         neptune_run["pattern"].upload(fig)
 
+    # Spawn 4 independent child SeedSequences
+    child_seeds = rng.bit_generator._seed_seq.spawn(4)
+    child_rngs = [np.random.default_rng(s) for s in child_seeds]
+
+    # If fixed seed available, override the corresponding spawned RNG
+    d_den_rng = (
+        np.random.default_rng(weight_params.d_den_seed)
+        if weight_params.d_den_seed != -1
+        else child_rngs[0]
+    )
+
+    d_som_rng = (
+        np.random.default_rng(full_config.experiment_params.d_som_seed)
+        if weight_params.d_som_seed != -1
+        else child_rngs[1]
+    )
+
+    w_den_rng = (
+        np.random.default_rng(full_config.experiment_params.w_den_seed)
+        if weight_params.w_den_seed != -1
+        else child_rngs[2]
+    )
+
+    w_som_rng = (
+        np.random.default_rng(full_config.experiment_params.w_som_seed)
+        if weight_params.w_som_seed != -1
+        else child_rngs[3]
+    )
+
     # Network
     rate_buffer = Buffer
-    dendritic_weights = DendriticWeights(weight_params, rng)
-    somatic_weights = SomaticWeights(weight_params, rng)
+    dendritic_weights = DendriticWeights(
+        weight_params, rng_w=w_den_rng, rng_d=d_den_rng
+    )
+    somatic_weights = SomaticWeights(weight_params, rng_w=w_som_rng, rng_d=d_som_rng)
     network_params.num_vis = dataloader.width
     network = Network(
         network_params, neuron_params, dendritic_weights, somatic_weights, rate_buffer
     )
+
+    print(dendritic_weights.delays)
+    print(somatic_weights.delays)
+
+    breakpoint()
 
     # Simulator
     optimizer = SimpleUpdater
@@ -333,7 +366,7 @@ if __name__ == "__main__":
     #        run_id = f.read().strip()
 
     neptune_run = neptune.init_run(
-        project="elise-neurotma/ELiSe",
+        project="elise-neurotma/Elise-scans",
         #        custom_run_id=run_id,
         name=path.name,
         tags=full_config.experiment_params.patterns,

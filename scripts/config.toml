@@ -1,12 +1,12 @@
 [experiment_params]
-neptune_project = "Supplement"
-seed = 1
-patterns = ['Prelude1']
-group_tag = ['prelude1_400']
+neptune_project = "Stability"
+seed = 2
+patterns = ['fuer_elise_4']
+group_tag = ['small_elise']
 pre_transforms =  ['to_biounits'] # ORDER MATTERS GREATLY
 
 [network_params]
-num_lat = 100
+num_lat = 50
 num_vis = 30
 
 [weight_params]
@@ -20,6 +20,10 @@ W_lat_vis = [0.0, 0.1]
 d_den = [5, 25]
 d_som = [5, 25]
 d_int = 15
+d_den_seed = -1 # -1 seed random, else seed fixed
+d_som_seed = -1 # -1 seed random, else seed fixed
+w_den_seed = -1 # -1 seed random, else seed fixed
+w_som_seed = -1 # -1 seed random, else seed fixed
 
 [simulation_params]
 dt = 0.1

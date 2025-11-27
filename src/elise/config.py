@@ -32,6 +32,10 @@ class WeightConfig:
     d_den: Tuple[int, int] = (5, 15)
     d_som: Tuple[int, int] = (5, 15)
     d_int: int = 25
+    d_den_seed: int = -1  # -1 seed random, else seed fixed
+    d_som_seed: int = -1  # -1 seed random, else seed fixed
+    w_den_seed: int = -1  # -1 seed random, else seed fixed
+    w_som_seed: int = -1  # -1 seed random, else seed fixed
 
 
 @dataclass(slots=True)

@@ -69,7 +69,7 @@ class DendriticWeights(Weights):
     :type weight_params: WeightConfig
     """
 
-    def __init__(self, weight_params: WeightConfig, rng):
+    def __init__(self, weight_params: WeightConfig, rng_w, rng_d):
         """
         Initialize the DendriticWeights object.
 
@@ -83,8 +83,8 @@ class DendriticWeights(Weights):
         self.W_lat_vis = weight_params.W_lat_vis
         self.W_lat_lat = weight_params.W_lat_lat
         self.d_range = weight_params.d_den
-        self.rng_w = rng
-        self.rng_d = rng
+        self.rng_w = rng_w
+        self.rng_d = rng_d
 
     def _create_weight_matrix(self, num_vis: int, num_lat: int) -> Tuple[npt.NDArray]:
         """
@@ -132,7 +132,7 @@ class SomaticWeights(Weights):
     :type weight_params: WeightConfig
     """
 
-    def __init__(self, weight_params: WeightConfig, rng):
+    def __init__(self, weight_params: WeightConfig, rng_w, rng_d):
         """
         Initialize the SomaticWeights object.
 
@@ -146,8 +146,8 @@ class SomaticWeights(Weights):
         self.q = weight_params.q
         self.p0 = weight_params.p0
         self.p_first = 1 - self.p0
-        self.rng_w = rng
-        self.rng_d = rng
+        self.rng_w = rng_w
+        self.rng_d = rng_d
         self.inh_delay = weight_params.d_int
 
     def _create_weight_matrix(self, num_vis: int, num_lat: int) -> Tuple[npt.NDArray]:
