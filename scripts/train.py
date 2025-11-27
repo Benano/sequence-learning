@@ -181,11 +181,6 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         network_params, neuron_params, dendritic_weights, somatic_weights, rate_buffer
     )
 
-    print(dendritic_weights.delays)
-    print(somatic_weights.delays)
-
-    breakpoint()
-
     # Simulator
     optimizer = SimpleUpdater
     dt = simulation_params.dt
