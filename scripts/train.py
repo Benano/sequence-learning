@@ -242,9 +242,10 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         # Validation
         if epoch != simulation_params.training_epochs - 1:
             for t in np.arange(0, validation_duration, simulation_params.dt):
-                c_t = c_t + simulation_params.dt
+                v_c_t = copy.deepcopy(c_t)
+                v_c_t = c_t + simulation_params.dt
                 network(u_inp=None, learn=False)
-                validation_tracker.track(network, c_t)
+                validation_tracker.track(network, v_c_t)
 
             u_out = np.array(validation_tracker["u_visible"])[-2 * len(u_target) :]
             r_out = np.array(validation_tracker["r_visible"])[-2 * len(u_target) :]
