@@ -47,8 +47,8 @@ class Weights(ABC):
         """
 
         num_total = num_vis + num_lat
-        d_min = self.delays[0]
-        d_max = self.delays[1]
+        d_min = self.d_range[0]
+        d_max = self.d_range[1]
         delays = self.rng_d.integers(d_min, d_max, num_total)
 
         return delays
@@ -77,12 +77,12 @@ class DendriticWeights(Weights):
         :type weight_params: WeightConfig
         """
         super().__init__(weight_params)
-        self.delays = weight_params.d_den
+        self.delays = None
         self.W_vis_vis = weight_params.W_vis_vis
         self.W_vis_lat = weight_params.W_vis_lat
         self.W_lat_vis = weight_params.W_lat_vis
         self.W_lat_lat = weight_params.W_lat_lat
-        self.d_den = weight_params.d_den
+        self.d_range = weight_params.d_den
         self.rng_w = rng
         self.rng_d = rng
 
@@ -140,7 +140,8 @@ class SomaticWeights(Weights):
         :type weight_params: WeightConfig
         """
         super().__init__(weight_params)
-        self.delays = weight_params.d_som
+        self.delays = None
+        self.d_range = weight_params.d_som
         self.p = weight_params.p
         self.q = weight_params.q
         self.p0 = weight_params.p0
