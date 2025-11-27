@@ -209,13 +209,14 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     train_tracker = Tracker(track_params.vars_train, track_params.sim_step)
     validation_tracker = Tracker(track_params.vars_val, track_params.sim_step)
     replay_tracker = Tracker(track_params.vars_replay, track_params.sim_step)
-    epoch_tracker = Tracker(track_params.vars_epoch, track_params.sim_step)
+    epoch_tracker = Tracker(track_params.vars_epoch, 1)
 
     c_t = 0.0
     nr_epochs = simulation_params.training_epochs
     losses = defaultdict(list)
 
     for epoch in tqdm(range(nr_epochs)):
+        epoch_tracker.track(network, c_t)
         for t in np.arange(0, training_duration, simulation_params.dt):
             network(u_inp=dataloader(t))
 
@@ -258,8 +259,9 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
                         mse,
                     )
                     c_width += widths[i]
-                    neptune_run[f"validation_loss_pat_{i}"].append(mse_loss_r)
-                    losses[f"validation_loss_pat_{i}"].append(mse_loss_r)
+                    if neptune_run:
+                        neptune_run[f"validation_loss_pat_{i}"].append(mse_loss_r)
+                        losses[f"validation_loss_pat_{i}"].append(mse_loss_r)
             else:
                 pass
 
@@ -268,8 +270,6 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
             losses["validation_loss_r"].append(mse_loss_r)
             losses["validation_loss_u"].append(mse_loss_u)
-
-        epoch_tracker.track(network, c_t)
 
     train_tracker.store("r_target", r_target)
     train_tracker.store("r_target_real", r_target_real)
@@ -328,8 +328,9 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
                     mse,
                 )
                 c_width += widths[i]
-                neptune_run[f"replay_loss_pat_{i}"].append(mse_loss_r)
-                losses[f"replay_loss_pat_{i}"].append(mse_loss_r)
+                if neptune_run:
+                    neptune_run[f"replay_loss_pat_{i}"].append(mse_loss_r)
+                    losses[f"replay_loss_pat_{i}"].append(mse_loss_r)
 
         losses["replay_loss_r"].append(mse_loss_r)
         losses["replay_loss_u"].append(mse_loss_u)
@@ -362,7 +363,7 @@ if __name__ == "__main__":
     #        run_id = f.read().strip()
 
     neptune_run = neptune.init_run(
-        project="elise-neurotma/Elise-scans",
+        project="elise-neurotma/Elise-tests",
         #        custom_run_id=run_id,
         name=path.name,
         tags=full_config.experiment_params.patterns,
