@@ -153,19 +153,19 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     )
 
     d_som_rng = (
-        np.random.default_rng(full_config.experiment_params.d_som_seed)
+        np.random.default_rng(weight_params.d_som_seed)
         if weight_params.d_som_seed != -1
         else child_rngs[1]
     )
 
     w_den_rng = (
-        np.random.default_rng(full_config.experiment_params.w_den_seed)
+        np.random.default_rng(weight_params.w_den_seed)
         if weight_params.w_den_seed != -1
         else child_rngs[2]
     )
 
     w_som_rng = (
-        np.random.default_rng(full_config.experiment_params.w_som_seed)
+        np.random.default_rng(weight_params.w_som_seed)
         if weight_params.w_som_seed != -1
         else child_rngs[3]
     )
