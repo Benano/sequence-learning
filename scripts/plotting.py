@@ -5,7 +5,93 @@ from matplotlib import animation
 from matplotlib.animation import PillowWriter
 from matplotlib.collections import LineCollection
 
-# def plot_weights_simple(weight_matrix):
+
+def plot_weights_grid(network):
+    dendritic_weights = network.dendritic_weights
+    somatic_weights = network.somatic_weights
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+    im1 = axes[0].imshow(
+        dendritic_weights,
+        aspect="auto",
+        interpolation="none",
+        cmap="bwr",
+        vmin=-np.max(np.abs(dendritic_weights)),
+        vmax=np.max(np.abs(dendritic_weights)),
+    )
+    axes[0].set_title("Dendritic Weights")
+    fig.colorbar(im1, ax=axes[0])
+    im2 = axes[1].imshow(
+        somatic_weights,
+        aspect="auto",
+        interpolation="none",
+        cmap="bwr",
+        vmin=-np.max(np.abs(somatic_weights)),
+        vmax=np.max(np.abs(somatic_weights)),
+    )
+    axes[1].set_title("Somatic Weights")
+    fig.colorbar(im2, ax=axes[1])
+    plt.tight_layout()
+
+    return fig
+
+
+def plot_dendritic_weights_animation(epoch_tracker):
+    fig, ax = plt.subplots(1, 2, figsize=(18, 8))
+    ax[0].imshow(
+        epoch_tracker["dendritic_weights_all"][0, :, :],
+        aspect="auto",
+        interpolation="none",
+        cmap="bwr",
+        vmin=-np.max(np.abs(epoch_tracker["dendritic_weights_all"])),
+        vmax=np.max(np.abs(epoch_tracker["dendritic_weights_all"])),
+    )
+
+    weight_changes = np.diff(epoch_tracker["dendritic_weights_all"], axis=0)
+    # stack to have same number of frames
+    weight_changes = np.vstack((weight_changes[0:1, :, :], weight_changes))
+    ax[1].imshow(
+        weight_changes[0, :, :],
+        aspect="auto",
+        interpolation="none",
+        cmap="bwr",
+        vmin=-np.max(np.abs(weight_changes)),
+        vmax=np.max(np.abs(weight_changes)),
+    )
+
+    def update(frame):
+        ax[0].clear()
+        ax[0].imshow(
+            epoch_tracker["dendritic_weights_all"][frame, :, :],
+            aspect="auto",
+            interpolation="none",
+            cmap="bwr",
+            vmin=-np.max(np.abs(epoch_tracker["dendritic_weights_all"])),
+            vmax=np.max(np.abs(epoch_tracker["dendritic_weights_all"])),
+        )
+        ax[1].clear()
+        ax[1].imshow(
+            weight_changes[frame, :, :],
+            aspect="auto",
+            interpolation="none",
+            cmap="bwr",
+            vmin=-np.max(np.abs(weight_changes)),
+            vmax=np.max(np.abs(weight_changes)),
+        )
+
+        return ax
+
+    ani = animation.FuncAnimation(
+        fig,
+        update,
+        frames=len(epoch_tracker["dendritic_weights_all"]),
+        blit=True,
+        interval=500,
+    )
+
+    plt.show()
+
+    return ani
 
 
 def plot_activity_in_time(train_output, replay_output, dt):
@@ -220,7 +306,7 @@ def load_pkl(path):
     return data
 
 
-def plot_weights(epoch_tracker):
+def plot_weights_in_time(epoch_tracker, validation_tracker, config):
     # plot of the weights across time
     weights = epoch_tracker["dendritic_weights_all"]
     weights = np.array(weights)
@@ -235,7 +321,7 @@ def plot_weights(epoch_tracker):
     # 3rd showing amount of weight change compared to previous time step
     mean_weights = np.mean(weights_flat, axis=1)
 
-    fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
+    fig, axes = plt.subplots(4, 1, figsize=(12, 10), sharex=True)
     axes[0].plot(weights_flat)
     axes[0].plot(mean_weights, color="black", linestyle="--", label="Mean Weights")
     axes[0].set_title("Dendritic Weights Over Time")
@@ -257,6 +343,15 @@ def plot_weights(epoch_tracker):
     axes[2].set_title("Weight Change Over Time")
     axes[2].set_ylabel("Weight Change (L2 Norm)")
     axes[2].set_xlabel("Time Step")
+
+    nr_timesteps = len(mean_weights)
+    losses = validation_tracker["losses"][0]["validation_loss_r"]
+    axes[3].set_title("Validation Loss Over Time")
+    axes[3].set_ylabel("Loss")
+    axes[3].set_xlabel("Time Step")
+    axes[3].set_xlim(0, nr_timesteps)
+    axes[3].plot(losses)
+
     plt.tight_layout()
 
     return fig
@@ -269,6 +364,7 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     val = load_pkl(artifact_path / "validation_dict.pkl")
     replay = load_pkl(artifact_path / "replay_dict.pkl")
     epoch = load_pkl(artifact_path / "epoch_dict.pkl")
+    network = load_pkl(artifact_path / "network.pkl")
 
     full_config = FullConfig(run_path / "config.toml")
     sim_params = full_config.simulation_params
@@ -297,10 +393,16 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     )
     step = sim_params.dt * track_params.sim_step
 
+    fig = plot_weights_grid(network)
+    save_fig(fig, "weights_grid.png", figure_path, neptune_run, dpi)
+
     fig = plot_activity_target_match(
         train_output, replay_output, train_target, start_time, step
     )
     save_fig(fig, "activity_match.png", figure_path, neptune_run, dpi)
+
+    fig = plot_weights_in_time(epoch, val, full_config)
+    save_fig(fig, "weights_over_time.png", figure_path, neptune_run, dpi)
 
     first_replay = 2 * int(pattern_duration / dt / sim_step)
     train_output = train["r_visible"][-last_train:].T
@@ -318,8 +420,9 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     fig = plot_activity_match(replay_output, epoch_len, train_target)
     save_fig(fig, "activity_match_replay.png", figure_path, neptune_run, dpi)
 
-    fig = plot_weights(epoch)
-    save_fig(fig, "weights_over_time.png", figure_path, neptune_run, dpi)
+    plot_dendritic_weights_animation(epoch)
+
+    plt.show()
 
     dpi = 100
     gif = False
