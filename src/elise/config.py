@@ -22,6 +22,7 @@ class NetworkConfig:
 
 @dataclass(slots=True)
 class WeightConfig:
+    weight_type: str = "developed"  # developed, random
     p: float = 0.5
     q: float = 0.3
     p0: float = 0.1

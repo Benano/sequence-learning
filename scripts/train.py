@@ -28,7 +28,7 @@ from elise.optimizer import SimpleUpdater
 from elise.rate_buffer import Buffer
 from elise.stats import compute_loss, mse
 from elise.tracker import Tracker
-from elise.weights import DendriticWeights, SomaticWeights
+from elise.weights import DendriticWeights, RandomSomaticWeights, SomaticWeights
 
 
 def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
@@ -175,7 +175,14 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     dendritic_weights = DendriticWeights(
         weight_params, rng_w=w_den_rng, rng_d=d_den_rng
     )
-    somatic_weights = SomaticWeights(weight_params, rng_w=w_som_rng, rng_d=d_som_rng)
+
+    somatic_weight_types = {
+        "developed": SomaticWeights,
+        "random": RandomSomaticWeights,
+    }
+
+    weight_type = somatic_weight_types[weight_params.weight_type]
+    somatic_weights = weight_type(weight_params, rng_w=w_som_rng, rng_d=d_som_rng)
     network_params.num_vis = dataloader.width
     network = Network(
         network_params, neuron_params, dendritic_weights, somatic_weights, rate_buffer
