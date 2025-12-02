@@ -6,6 +6,7 @@ import neptune
 import numpy as np
 from tqdm import tqdm
 from utils import load_pattern_flexible
+from weight_metrics import analyze_connectivity_metrics
 
 from elise.data import (
     Dataloader,
@@ -282,6 +283,15 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     train_tracker.store("r_target_real", r_target_real)
     validation_tracker.store("r_target", r_target)
     validation_tracker.store("losses", losses)
+
+    som_w_metrics = analyze_connectivity_metrics(
+        somatic_weights.weight_matrix, network.num_vis, cycles=False
+    )
+    den_w_metrics = analyze_connectivity_metrics(
+        dendritic_weights.weight_matrix, network.num_vis, cycles=False
+    )
+    neptune_run["weight_metrics/dendric"] = den_w_metrics
+    neptune_run["weight_metrics/somatic"] = som_w_metrics
 
     if isinstance(dataloader, MultiPatternDataloader):
         first = dataloader.widths[0]

@@ -420,9 +420,8 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     fig = plot_activity_match(replay_output, epoch_len, train_target)
     save_fig(fig, "activity_match_replay.png", figure_path, neptune_run, dpi)
 
-    plot_dendritic_weights_animation(epoch)
-
-    plt.show()
+    # plot_dendritic_weights_animation(epoch)
+    # plt.show()
 
     dpi = 100
     gif = False
