@@ -139,6 +139,7 @@ def main(parameter_tag, saving, debug):
     train_tracker.save_dict(artifact_path / "train_dict.pkl")
     replay_tracker.save_dict(artifact_path / "replay_dict.pkl")
     epoch_tracker.save_dict(artifact_path / "epoch_dict.pkl")
+    neptune_run["network"].upload(str(artifact_path / "network.pkl"))
 
     if saving:
         neptune_run["network"].upload(str(artifact_path / "network.pkl"))
