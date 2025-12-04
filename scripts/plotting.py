@@ -1,9 +1,72 @@
 #!/usr/bin/env python3
 import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 from matplotlib import animation
 from matplotlib.animation import PillowWriter
 from matplotlib.collections import LineCollection
+from matplotlib.offsetbox import AnchoredText
+from weight_metrics import analyze_connectivity_metrics
+
+
+def plot_connectivity_network(weight_matrix, num_vis: int = None):
+    """Plot connectivity matrix as a network graph."""
+
+    # Create directed graph from matrix (weight_matrix[post, pre] = 1 means pre -> post)
+    G = nx.from_numpy_array(weight_matrix, create_using=nx.DiGraph())
+
+    # Separate visible/lateral neurons for positioning (optional)
+    if num_vis:
+        pos = nx.spring_layout(G)
+        # Or position visible neurons on left, lateral on right:
+        # pos = {i: (0, i/num_vis) for i in range(num_vis)}
+        # pos.update({i: (1, (i-num_vis)/ (weight_matrix.shape[0]-num_vis))
+        #             for i in range(num_vis, len(G))})
+
+    # Plot with labels, colors, and arrows
+    fig, ax = plt.subplots(figsize=(12, 8))
+    nx.draw(
+        G,
+        pos=nx.spring_layout(G),
+        with_labels=True,
+        node_color="lightblue",
+        node_size=20,
+        arrows=False,
+        font_size=8,
+        arrowsize=20,
+        edge_color="gray",
+        width=1.5,
+    )
+    plt.title("Connectivity Network")
+
+    metrics = analyze_connectivity_metrics(weight_matrix, num_vis)
+
+    # ADD METRICS BOX IN LOWER RIGHT
+    lines = []
+    for k, v in metrics.items():
+        if isinstance(v, float):
+            lines.append(f"{k}: {v:.3f}")
+        elif isinstance(v, bool):
+            lines.append(f"{k}: {'Yes' if v else 'No'}")
+        else:
+            lines.append(f"{k}: {v}")
+    text = "\n".join(lines)
+
+    at = AnchoredText(
+        text,
+        loc="lower right",
+        prop=dict(size=9),
+        frameon=True,
+        borderpad=0.5,
+        bbox_to_anchor=(1.0, 0.0),  # Align to lower right
+        bbox_transform=ax.transAxes,
+    )
+    ax.add_artist(at)
+
+    return fig
+
+
+# Usage
 
 
 def plot_weights_grid(network):
@@ -420,8 +483,8 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     fig = plot_activity_match(replay_output, epoch_len, train_target)
     save_fig(fig, "activity_match_replay.png", figure_path, neptune_run, dpi)
 
-    # plot_dendritic_weights_animation(epoch)
-    # plt.show()
+    fig = plot_connectivity_network(network.somatic_weights, num_vis=network.num_vis)
+    save_fig(fig, "somatic_connectivity", figure_path, neptune_run, dpi)
 
     dpi = 100
     gif = False
