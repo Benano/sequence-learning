@@ -68,6 +68,9 @@ instance/
 # Scrapy stuff:
 .scrapy
 
+# Config file
+config.toml
+
 # Sphinx documentation
 docs/_build/
 
