@@ -218,6 +218,40 @@ def plot_activity_in_time(train_output, replay_output, dt):
     return ani
 
 
+def plot_replay_activity(replay_output, start_time, step):
+    # Create a figure with two subplots, sharing the x-axis
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 4), sharex=True)
+
+    # Determine overall min and max values
+    vmin = np.min(replay_output)
+    vmax = np.max(replay_output)
+
+    colormap = plt.get_cmap("Blues")
+
+    # Calculate x-ticks
+    xticks = (
+        np.arange(start_time, start_time + replay_output.shape[1] * step, 500) / 1000
+    )
+
+    # Plot simulation output
+    im1 = ax1.imshow(
+        replay_output,
+        aspect="auto",
+        interpolation="none",
+        cmap=colormap,
+        vmin=vmin,
+        vmax=vmax,
+    )
+    ax1.set_ylabel(r"Neuron")
+    ax1.set_title(r"Output")
+
+    # Add a single colorbar for both plots
+    cbar = fig.colorbar(im1, ax=[ax1, ax2])
+    cbar.set_label("Firing rate")
+
+    return fig
+
+
 def plot_activity_target_match(
     train_output, replay_output, train_target, start_time, step
 ):
@@ -445,9 +479,7 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     last_train = int(pattern_duration / dt / sim_step)
     first_replay = 1 * int(pattern_duration / dt / sim_step)
 
-    train_output = train["u_visible"][-last_train:].T
     replay_output = replay["u_visible"][: first_replay * 5].T
-    train_target = train["u_inp_visible"][-last_train:].T
     dpi = 300
     start_time = (
         pattern_params.pattern_duration
@@ -458,6 +490,12 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
 
     fig = plot_weights_grid(network)
     save_fig(fig, "weights_grid.png", figure_path, neptune_run, dpi)
+
+    fig = plot_replay_activity(replay_output, start_time, step)
+    save_fig(fig, "replay_activity.png", figure_path, neptune_run, dpi)
+
+    train_target = train["u_inp_visible"][-last_train:].T
+    train_output = train["u_visible"][-last_train:].T
 
     fig = plot_activity_target_match(
         train_output, replay_output, train_target, start_time, step

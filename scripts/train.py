@@ -42,10 +42,10 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     track_params = full_config.tracking_params
 
     patterns = []
-    for pattern_name in experiment_params.patterns:
+    for en, pattern_name in enumerate(experiment_params.patterns):
         if pattern_name == "random":
             if pattern_params.non_markov_type == "none":
-                pattern_rng = copy.deepcopy(rng)
+                pattern_rng = np.random.default_rng(experiment_params.seed + en)
                 pattern = RandomPattern(
                     width=network_params.num_vis,
                     duration=pattern_params.pattern_duration,
@@ -54,7 +54,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
                 )
                 patterns.append(pattern)
             elif pattern_params.non_markov_type == "sampled":
-                pattern_rng = copy.deepcopy(rng)
+                pattern_rng = np.random.default_rng(experiment_params.seed + en)
                 pattern = RandomSampledNonMarkovianPattern(
                     width=network_params.num_vis,
                     duration=pattern_params.pattern_duration,
@@ -64,7 +64,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
                 )
                 patterns.append(pattern)
             elif pattern_params.non_markov_type == "copied":
-                pattern_rng = copy.deepcopy(rng)
+                pattern_rng = np.random.default_rng(experiment_params.seed + en)
                 pattern = RandomCopiedNonMarkovianPattern(
                     width=network_params.num_vis,
                     duration=pattern_params.pattern_duration,
@@ -117,11 +117,24 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
             online_transforms.append(WhiteNoise(pattern_params.noise_sigma))
 
     if len(patterns) > 1:
-        dataloader = MultiPatternDataloader(
-            patterns=patterns,
-            pre_transform=pre_transforms,
-            online_transform=online_transforms,
-        )
+        if experiment_params.multi_type == "sequential":
+            dataloader1 = Dataloader(
+                patterns[0],
+                pre_transforms=pre_transforms,
+                online_transforms=online_transforms,
+            )
+            dataloader2 = Dataloader(
+                patterns[1],
+                pre_transforms=pre_transforms,
+                online_transforms=online_transforms,
+            )
+
+        elif experiment_params.multi_type == "stacked":
+            dataloader = MultiPatternDataloader(
+                patterns=patterns,
+                pre_transform=pre_transforms,
+                online_transform=online_transforms,
+            )
     else:
         dataloader = Dataloader(
             patterns[0],
@@ -132,7 +145,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     import matplotlib.pyplot as plt
 
     # Create imshow of pattern
-    target_pattern = dataloader.get_full_pattern(simulation_params.dt)
+    target_pattern = dataloader1.get_full_pattern(simulation_params.dt)
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.imshow(target_pattern.T, aspect="auto", cmap="gray", interpolation="none")
     ax.set_title("Input Pattern")
@@ -171,23 +184,26 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         else child_rngs[3]
     )
 
-    # Network
-    rate_buffer = Buffer
-    dendritic_weights = DendriticWeights(
-        weight_params, rng_w=w_den_rng, rng_d=d_den_rng
-    )
+    # load network
+    network = Network.load(artifact_path / "network.pkl")
 
-    somatic_weight_types = {
-        "developed": SomaticWeights,
-        "random": RandomSomaticWeights,
-    }
+    # # Network
+    # rate_buffer = Buffer
+    # dendritic_weights = DendriticWeights(
+    #     weight_params, rng_w=w_den_rng, rng_d=d_den_rng
+    # )
 
-    weight_type = somatic_weight_types[weight_params.weight_type]
-    somatic_weights = weight_type(weight_params, rng_w=w_som_rng, rng_d=d_som_rng)
-    network_params.num_vis = dataloader.width
-    network = Network(
-        network_params, neuron_params, dendritic_weights, somatic_weights, rate_buffer
-    )
+    # somatic_weight_types = {
+    #     "developed": SomaticWeights,
+    #     "random": RandomSomaticWeights,
+    # }
+
+    # weight_type = somatic_weight_types[weight_params.weight_type]
+    # somatic_weights = weight_type(weight_params, rng_w=w_som_rng, rng_d=d_som_rng)
+    # network_params.num_vis = dataloader1.width
+    # network = Network(
+    #     network_params, neuron_params, dendritic_weights, somatic_weights, rate_buffer
+    # )
 
     # Simulator
     optimizer = SimpleUpdater
@@ -198,20 +214,32 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     optimizer_vis = optimizer(eta_vis)
     network.prepare_for_simulation(dt, optimizer_vis, optimizer_lat)
 
-    u_target = dataloader.get_full_pattern(dt, online_transforms=False)[
+    # Target 1
+    u_target1 = dataloader1.get_full_pattern(dt, online_transforms=False)[
         :: track_params.sim_step
     ]
-    r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
+    r_target1 = eq_phi(u_target1, neuron_params.a, neuron_params.b)
 
-    u_target_real = dataloader.get_full_pattern(dt, num=10, online_transforms=True)[
+    u_target_real1 = dataloader1.get_full_pattern(dt, num=10, online_transforms=True)[
         :: track_params.sim_step
     ]
-    r_target_real = eq_phi(u_target_real, neuron_params.a, neuron_params.b)
+    r_target_real1 = eq_phi(u_target_real1, neuron_params.a, neuron_params.b)
+
+    # Target 2
+    u_target2 = dataloader2.get_full_pattern(dt, online_transforms=False)[
+        :: track_params.sim_step
+    ]
+    r_target2 = eq_phi(u_target2, neuron_params.a, neuron_params.b)
+
+    u_target_real2 = dataloader2.get_full_pattern(dt, num=10, online_transforms=True)[
+        :: track_params.sim_step
+    ]
+    r_target_real2 = eq_phi(u_target_real1, neuron_params.a, neuron_params.b)
 
     # Sim params
-    training_duration = simulation_params.training_cycles * dataloader.duration
-    validation_duration = simulation_params.validation_cycles * dataloader.duration
-    replay_duration = simulation_params.replay_cycles * dataloader.duration
+    training_duration = simulation_params.training_cycles * dataloader1.duration
+    validation_duration = simulation_params.validation_cycles * dataloader1.duration
+    replay_duration = simulation_params.replay_cycles * dataloader1.duration
 
     # Sim Trackers
     train_tracker = Tracker(track_params.vars_train, track_params.sim_step)
@@ -223,80 +251,92 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     nr_epochs = simulation_params.training_epochs
     losses = defaultdict(list)
 
-    for epoch in tqdm(range(nr_epochs)):
-        epoch_tracker.track(network, c_t)
-        for t in np.arange(0, training_duration, simulation_params.dt):
-            network(u_inp=dataloader(t))
+    # for epoch in tqdm(range(nr_epochs)):
 
-            if track_params.track_training:
-                c_t = c_t + simulation_params.dt
-                first_patterns = 5 * dataloader.duration
-                if t < first_patterns and t > dataloader.duration:
-                    train_tracker.track(network, c_t)
-            else:
-                if epoch > nr_epochs - 1 and t > training_duration - (
-                    2 * dataloader.duration
-                ):
-                    train_tracker.track(network, c_t)
+    #     if experiment_params.multi_type == 'sequential' and len(patterns) > 1:
 
-        # Add learning rate decay
-        network.optimizer_vis.eta *= simulation_params.eta_decay
-        network.optimizer_lat.eta *= simulation_params.eta_decay
+    #         if epoch % 20 < 10:
+    #                 dataloader = dataloader1
+    #                 u_target = u_target1
+    #                 r_target = r_target1
+    #         else:
+    #                 dataloader = dataloader2
+    #                 u_target = u_target2
+    #                 r_target = r_target2
 
-        # Validation
-        if epoch != simulation_params.training_epochs - 1:
-            for t in np.arange(0, validation_duration, simulation_params.dt):
-                v_c_t = copy.deepcopy(c_t)
-                v_c_t = c_t + simulation_params.dt
-                network(u_inp=None, learn=False)
-                validation_tracker.track(network, v_c_t)
+    #     epoch_tracker.track(network, c_t)
+    #     for t in np.arange(0, training_duration, simulation_params.dt):
+    #         network(u_inp=dataloader(t))
 
-            u_out = np.array(validation_tracker["u_visible"])[-2 * len(u_target) :]
-            r_out = np.array(validation_tracker["r_visible"])[-2 * len(u_target) :]
+    #         if track_params.track_training:
+    #             c_t = c_t + simulation_params.dt
+    #             first_patterns = 5 * dataloader.duration
+    #             if t < first_patterns and t > dataloader.duration:
+    #                 train_tracker.track(network, c_t)
+    #         else:
+    #             if epoch > nr_epochs - 1 and t > training_duration - (
+    #                 2 * dataloader.duration
+    #             ):
+    #                 train_tracker.track(network, c_t)
 
-            mse_loss_u = compute_loss(u_out, u_target, mse)
-            mse_loss_r = compute_loss(r_out, r_target, mse)
+    #     # Add learning rate decay
+    #     network.optimizer_vis.eta *= simulation_params.eta_decay
+    #     network.optimizer_lat.eta *= simulation_params.eta_decay
 
-            if isinstance(dataloader, MultiPatternDataloader):
-                widths = dataloader.widths
-                c_width = 0
-                for i in range(len(patterns)):
-                    mse_loss_r = compute_loss(
-                        r_out[:, c_width : c_width + widths[i]],
-                        r_target[:, c_width : c_width + widths[i]],
-                        mse,
-                    )
-                    c_width += widths[i]
-                    if neptune_run:
-                        neptune_run[f"validation_loss_pat_{i}"].append(mse_loss_r)
-                        losses[f"validation_loss_pat_{i}"].append(mse_loss_r)
-            else:
-                pass
+    #     # Validation
+    #     if epoch != simulation_params.training_epochs - 1:
+    #         for t in np.arange(0, validation_duration, simulation_params.dt):
+    #             v_c_t = copy.deepcopy(c_t)
+    #             v_c_t = c_t + simulation_params.dt
+    #             network(u_inp=None, learn=False)
+    #             validation_tracker.track(network, v_c_t)
 
-            if neptune_run:
-                neptune_run["validation_loss_r"].append(mse_loss_r)
+    #         u_out = np.array(validation_tracker["u_visible"])[-2 * len(u_target) :]
+    #         r_out = np.array(validation_tracker["r_visible"])[-2 * len(u_target) :]
 
-            losses["validation_loss_r"].append(mse_loss_r)
-            losses["validation_loss_u"].append(mse_loss_u)
+    #         mse_loss_u = compute_loss(u_out, u_target, mse)
+    #         mse_loss_r = compute_loss(r_out, r_target, mse)
 
-    train_tracker.store("r_target", r_target)
-    train_tracker.store("r_target_real", r_target_real)
-    validation_tracker.store("r_target", r_target)
-    validation_tracker.store("losses", losses)
+    #         if isinstance(dataloader, MultiPatternDataloader):
+    #             widths = dataloader.widths
+    #             c_width = 0
+    #             for i in range(len(patterns)):
+    #                 mse_loss_r = compute_loss(
+    #                     r_out[:, c_width : c_width + widths[i]],
+    #                     r_target[:, c_width : c_width + widths[i]],
+    #                     mse,
+    #                 )
+    #                 c_width += widths[i]
+    #                 if neptune_run:
+    #                     neptune_run[f"validation_loss_pat_{i}"].append(mse_loss_r)
+    #                     losses[f"validation_loss_pat_{i}"].append(mse_loss_r)
+    #         else:
+    #             pass
 
-    som_w_metrics = analyze_connectivity_metrics(
-        somatic_weights.weight_matrix, network.num_vis, cycles=False
-    )
-    den_w_metrics = analyze_connectivity_metrics(
-        dendritic_weights.weight_matrix, network.num_vis, cycles=False
-    )
-    neptune_run["weight_metrics/dendric"] = den_w_metrics
-    neptune_run["weight_metrics/somatic"] = som_w_metrics
+    #         if neptune_run:
+    #             neptune_run["validation_loss_r"].append(mse_loss_r)
 
-    if isinstance(dataloader, MultiPatternDataloader):
+    #         losses["validation_loss_r"].append(mse_loss_r)
+    #         losses["validation_loss_u"].append(mse_loss_u)
+
+    # train_tracker.store("r_target", r_target1)
+    # train_tracker.store("r_target_real", r_target_real1)
+    # validation_tracker.store("r_target", r_target1)
+    # validation_tracker.store("losses", losses)
+
+    # som_w_metrics = analyze_connectivity_metrics(
+    #     network.somatic_weights, network.num_vis, cycles=False
+    # )
+    # den_w_metrics = analyze_connectivity_metrics(
+    #     network.dendritic_weights, network.num_vis, cycles=False
+    # )
+    # neptune_run["weight_metrics/dendric"] = den_w_metrics
+    # neptune_run["weight_metrics/somatic"] = som_w_metrics
+
+    if isinstance(dataloader1, MultiPatternDataloader):
         first = dataloader.widths[0]
     else:
-        first = 10
+        first = 5
 
     replay_params = full_config.replay_params
 
@@ -309,6 +349,10 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     replay_network = copy.deepcopy(network)
     disruption = replay_params.disruption
 
+    dataloader = dataloader1
+    u_target = u_target1
+    r_target = r_target1
+
     for epoch in tqdm(range(simulation_params.replay_epochs)):
         for t in np.arange(0, replay_duration, simulation_params.dt):
             if disruption != 0 and epoch == 0 and t > dataloader.duration:
@@ -316,7 +360,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
             else:
                 pass
 
-            if replay_params.partial_replay and epoch == 1:
+            if replay_params.partial_replay and epoch < 8:
                 u_inp = copy.deepcopy(replay_network.get_val("u", "visible"))
                 u_tar = dataloader(t)[:first]
                 u_inp[:first] = u_tar

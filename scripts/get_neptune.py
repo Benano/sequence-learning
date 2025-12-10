@@ -191,9 +191,16 @@ if __name__ == "__main__":
 
     # tag_names = [f"noise_{s}_100" for s in [2, 4, 8]]
 
-    project_name = "Elise-noise"
+    project_name = "Suppdog"
     tag_names = [
-        "noisy_8_ye",
+        "prelude1_long",
+        "prelude2_long",
+        "prelude3_long",
+        "prelude4_long",
+        "prelude5_long",
+        "prelude6_long",
+        "prelude7_long",
+        # "prelude8_y",
     ]
 
     get_multi_run_group_tag(
@@ -202,7 +209,7 @@ if __name__ == "__main__":
         artifact_names=artifact_names,
         save_loc=Path(
             # "/Users/benano/Documents/code/sequence-learning/scripts/plots/data/showoff/")
-            "/Users/benano/Documents/org/manuscripts/SequenceLearningPaper/data/noise/"
+            "/Users/benano/Documents/org/manuscripts/SequenceLearningPaper/data/preludes_supplement/"
         ),
     )
 
