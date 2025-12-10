@@ -4,7 +4,10 @@ import numpy as np
 
 
 def analyze_connectivity_metrics(
-    weight_matrix: np.ndarray, num_vis: int, cycles=False
+    weight_matrix: np.ndarray,
+    num_vis: int,
+    cycles=False,
+    count_num_cycles: bool = False,
 ) -> dict:
     """
     Compute various metrics of the connectivity matrix.
@@ -52,11 +55,14 @@ def analyze_connectivity_metrics(
     is_acyclic = nx.is_directed_acyclic_graph(G)
 
     # Count number of cycles by enumerating simple cycles (limited to avoid long runs)
-    if cycles:
-        w_cycles = list(nx.simple_cycles(G))
-        num_cycles = len(w_cycles)
+    if count_num_cycles:
+        if cycles:
+            w_cycles = list(nx.simple_cycles(G))
+            num_cycles = len(w_cycles)
+        else:
+            num_cycles = None
     else:
-        num_cycles = None
+        num_cycles = 500
 
     metrics = {
         "total_connections": total_connections,
@@ -73,6 +79,44 @@ def analyze_connectivity_metrics(
     }
 
     return metrics
+
+
+def add_cycles_to_weights(weight_matrix, num_vis, nr_cycles):
+    rng = np.random.default_rng(seed=42)
+    # Build directed graph with NetworkX
+    G = nx.from_numpy_array(weight_matrix, create_using=nx.DiGraph)
+
+    # Check if acyclic
+    is_acyclic = nx.is_directed_acyclic_graph(G)
+
+    if not is_acyclic:
+        raise ValueError("Weight matrix must be acyclic to add cycles.")
+
+    nr_added = 0
+    edges_to_add = []  # As indices in the original weight matrix
+
+    while nr_added < nr_cycles:
+        # Randomly select two nodes
+        nodes = list(G.nodes)
+
+        a = rng.choice(nodes, replace=False)
+        # Ensure b is different from a and not a visible neuron
+        possible_b_nodes = [n for n in nodes if n != a and n >= num_vis]
+        b = rng.choice(possible_b_nodes, replace=False)
+
+        # Check if adding edge a -> b creates a cycle
+        G.add_edge(a, b)
+        if nx.is_directed_acyclic_graph(G):
+            G.remove_edge(a, b)
+        else:
+            edges_to_add.append((a, b))
+            nr_added += 1
+            print("Added edge:", a, "->", b)
+
+    for a, b in edges_to_add:
+        weight_matrix[a, b] = 1.0
+
+    return weight_matrix
 
 
 if __name__ == "__main__":
@@ -109,7 +153,20 @@ if __name__ == "__main__":
 
     num_vis = 2
     metrics = analyze_connectivity_metrics(
-        somatic_weights.weight_matrix, num_vis, cycles=True
+        somatic_weights.weight_matrix, num_vis, cycles=True, count_num_cycles=True
+    )
+    print("Somatic Weight Matrix Metrics Acyclic:")
+    for key, value in metrics.items():
+        print(f"{key}: {value}")
+
+    num_vis = 12
+    cyclic_weights = add_cycles_to_weights(
+        somatic_weights.weight_matrix, num_vis, nr_cycles=1
+    )
+    somatic_weights.weight_matrix = cyclic_weights
+
+    metrics = analyze_connectivity_metrics(
+        somatic_weights.weight_matrix, num_vis, cycles=True, count_num_cycles=True
     )
     print("Somatic Weight Matrix Metrics:")
     for key, value in metrics.items():

@@ -6,7 +6,7 @@ import neptune
 import numpy as np
 from tqdm import tqdm
 from utils import load_pattern_flexible
-from weight_metrics import analyze_connectivity_metrics
+from weight_metrics import add_cycles_to_weights, analyze_connectivity_metrics
 
 from elise.data import (
     Dataloader,
@@ -184,10 +184,29 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
     weight_type = somatic_weight_types[weight_params.weight_type]
     somatic_weights = weight_type(weight_params, rng_w=w_som_rng, rng_d=d_som_rng)
+
     network_params.num_vis = dataloader.width
     network = Network(
         network_params, neuron_params, dendritic_weights, somatic_weights, rate_buffer
     )
+
+    # add cycles to weights
+    cyclic_weights = add_cycles_to_weights(
+        somatic_weights.weight_matrix,
+        network_params.num_vis,
+        nr_cycles=weight_params.num_cycles,
+    )
+    somatic_weights.weight_matrix = cyclic_weights
+
+    metrics = analyze_connectivity_metrics(
+        somatic_weights.weight_matrix,
+        network_params.num_vis,
+        cycles=True,
+        count_num_cycles=True,
+    )
+    print("Somatic Weight Matrix Metrics:")
+    for key, value in metrics.items():
+        print(f"{key}: {value}")
 
     # Simulator
     optimizer = SimpleUpdater
@@ -285,7 +304,10 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     validation_tracker.store("losses", losses)
 
     som_w_metrics = analyze_connectivity_metrics(
-        somatic_weights.weight_matrix, network.num_vis, cycles=False
+        somatic_weights.weight_matrix,
+        network.num_vis,
+        cycles=False,
+        count_num_cycles=True,
     )
     den_w_metrics = analyze_connectivity_metrics(
         dendritic_weights.weight_matrix, network.num_vis, cycles=False

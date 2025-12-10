@@ -37,6 +37,7 @@ class WeightConfig:
     d_som_seed: int = -1  # -1 seed random, else seed fixed
     w_den_seed: int = -1  # -1 seed random, else seed fixed
     w_som_seed: int = -1  # -1 seed random, else seed fixed
+    num_cycles: int = 0
 
 
 @dataclass(slots=True)

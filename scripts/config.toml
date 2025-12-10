@@ -1,23 +1,23 @@
 [experiment_params]
 neptune_project = "Elise-tests"
 seed = 2
-patterns = ['fuer_elise_4']
+patterns = ['fuer_elise_ye']
 group_tag = ['small_elise']
 pre_transforms =  ['to_biounits'] # ORDER MATTERS GREATLY
 
 [network_params]
 num_lat = 50
-num_vis = 30
+num_vis = 13
 
 [weight_params]
-weight_type = "random" # developed, random
+weight_type = "developed" # developed, random
 p = 0.2
 q = 0.0
 p0 = 0.04
-W_vis_vis = [-1.8, 2.0]
-W_vis_lat = [-1.8, 2.0]
-W_lat_lat = [-1.8, 2.0]
-W_lat_vis = [-1.8, 2.0]
+W_vis_vis = [-0.5, 1.0]
+W_vis_lat = [-0.5, 1.0]
+W_lat_lat = [-0.5, 1.0]
+W_lat_vis = [-0.5, 1.0]
 d_den = [5, 25]
 d_som = [5, 25]
 d_int = 15
@@ -25,10 +25,11 @@ d_den_seed = -1 # -1 seed random, else seed fixed
 d_som_seed = -1 # -1 seed random, else seed fixed
 w_den_seed = -1 # -1 seed random, else seed fixed
 w_som_seed = -1 # -1 seed random, else seed fixed
+num_cycles = 10
 
 [simulation_params]
 dt = 0.1
-training_epochs = 50
+training_epochs = 25
 replay_epochs = 50
 training_cycles = 50
 validation_cycles = 2
