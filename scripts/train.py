@@ -190,13 +190,13 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         network_params, neuron_params, dendritic_weights, somatic_weights, rate_buffer
     )
 
-    # add cycles to weights
-    cyclic_weights = add_cycles_to_weights(
-        somatic_weights.weight_matrix,
-        network_params.num_vis,
-        nr_cycles=weight_params.num_cycles,
-    )
-    somatic_weights.weight_matrix = cyclic_weights
+    # # add cycles to weights
+    # cyclic_weights = add_cycles_to_weights(
+    #     somatic_weights.weight_matrix,
+    #     network_params.num_vis,
+    #     nr_cycles=weight_params.num_cycles,
+    # )
+    # somatic_weights.weight_matrix = cyclic_weights
 
     metrics = analyze_connectivity_metrics(
         somatic_weights.weight_matrix,
