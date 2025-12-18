@@ -11,6 +11,7 @@ from elise.data import (
     MultiHotPattern,
     OneHotPattern,
     Pattern,
+    ShuffleDataloader,
 )
 
 DT = 0.1
@@ -32,6 +33,36 @@ def base_sequence():
             [1.0, 0.0, 0.0],
             [0.0, 0.0, 1.0],
             [0.0, 0.0, 1.0],
+        ]
+    )
+    return pattern
+
+
+@pytest.fixture()
+def base_sequence2():
+    pattern = np.array(
+        [
+            [0.0, 2.0, 0.0],
+            [0.0, 2.0, 0.0],
+            [2.0, 0.0, 0.0],
+            [2.0, 0.0, 0.0],
+            [0.0, 0.0, 2.0],
+            [0.0, 0.0, 2.0],
+            [2.0, 2.0, 2.0],
+            [2.0, 2.0, 2.0],
+        ]
+    )
+    return pattern
+
+
+@pytest.fixture()
+def base_sequence3():
+    pattern = np.array(
+        [
+            [0.0, 3.0, 0.0],
+            [3.0, 0.0, 0.0],
+            [0.0, 0.0, 3.0],
+            [3.0, 3.0, 3.0],
         ]
     )
     return pattern
@@ -156,7 +187,7 @@ def test_multihot(multihot_pattern):
 
 
 ###############################
-# Test the contineous pattern #
+# Test the continuous pattern #
 ###############################
 
 
@@ -297,6 +328,11 @@ class TestDataloader:
             t_exp += 0.1
             idx += 1
 
+    def test_get_full_pattern(self, dataloader_factory, base_sequence):
+        dataloader = dataloader_factory()
+        res = dataloader.get_full_pattern(DT)
+        assert_allclose(res, base_sequence)
+
     def test_Dataloader_factory_error(self, dataloader_factory):
         with pytest.raises(TypeError):
             dataloader_factory(pattern="Not a Pattern.")
@@ -308,7 +344,7 @@ class TestDataloader:
 
 
 @pytest.fixture()
-def contineous_dataloader_factory(circle_pattern):
+def continuous_dataloader_factory(circle_pattern):
     def factory(pattern=None, pre_transforms=[], online_transforms=[]):
         if pattern is None:
             pattern = circle_pattern()
@@ -320,15 +356,15 @@ def contineous_dataloader_factory(circle_pattern):
 
 
 class TestContiDataloader:
-    def test_bla(self, contineous_dataloader_factory):
-        dl = contineous_dataloader_factory()
+    def test_bla(self, continuous_dataloader_factory):
+        dl = continuous_dataloader_factory()
         assert isinstance(dl, ContinuousDataloader)
         assert isinstance(dl(0), np.ndarray)
 
     @pytest.mark.parametrize("t", [0.0, 0.1, 0.4])
-    def test_call(self, contineous_dataloader_factory, circle_pattern, t):
+    def test_call(self, continuous_dataloader_factory, circle_pattern, t):
         circle = circle_pattern()
-        dataloader = contineous_dataloader_factory()
+        dataloader = continuous_dataloader_factory()
         res = dataloader(t)
         exp = circle(t)
         assert_allclose(res, exp)
@@ -343,16 +379,233 @@ class TestContiDataloader:
     )
     def test_pretransforms(
         self,
-        contineous_dataloader_factory,
+        continuous_dataloader_factory,
         transform_plus,
         transform_mult,
         circle_pattern,
         t,
     ):
-        dataloader = contineous_dataloader_factory(
+        dataloader = continuous_dataloader_factory(
             pre_transforms=[transform_mult, transform_plus]
         )
         circle = circle_pattern()
         res = dataloader(t)
         exp = transform_plus(transform_mult(circle(t)))
         assert_allclose(res, exp)
+
+
+##########################
+# Test ShuffleDataloader #
+##########################
+
+SHUFFLE_SIZE = 4
+SHUFFLE_SEED = 42
+
+
+@pytest.fixture()
+def shuffled_idx_factory():
+    def factory(num_pattern, seed=None, length=None):
+        if seed is None:
+            seed = SHUFFLE_SEED
+        if length is None:
+            length = SHUFFLE_SIZE
+        rng = np.random.default_rng(SHUFFLE_SEED)
+        return rng.choice(num_pattern, size=length)
+
+    return factory
+
+
+@pytest.fixture()
+def multisequence_target_factory():
+    def factory(pattern_list, shuffled_idx):
+        return np.concatenate([pattern_list[i].pattern for i in shuffled_idx], axis=0)
+
+    return factory
+
+
+@pytest.fixture()
+def multisequence(pattern_factory, base_sequence, base_sequence2, base_sequence3):
+    return [
+        pattern_factory(base_sequence),
+        pattern_factory(base_sequence2),
+        pattern_factory(base_sequence3),
+    ]
+
+
+@pytest.fixture()
+def shuffledataloader_factory(multisequence):
+    def factory(
+        pattern=None, length=None, seed=None, pre_transforms=[], online_transforms=[]
+    ):
+        if pattern is None:
+            pattern = multisequence
+        if length is None:
+            length = SHUFFLE_SIZE
+        if seed is None:
+            seed = SHUFFLE_SEED
+        max_dur = max([pat.duration for pat in pattern])
+        return ShuffleDataloader(
+            pattern=pattern,
+            t_max=max_dur * SHUFFLE_SIZE,
+            seed=seed,
+            pre_transforms=pre_transforms,
+            online_transforms=online_transforms,
+        )
+
+    return factory
+
+
+class TestShuffleDataloader:
+    def test_init(self, multisequence, shuffledataloader_factory):
+        dataloader = shuffledataloader_factory(
+            pattern=multisequence, length=SHUFFLE_SIZE, seed=SHUFFLE_SEED
+        )
+        assert len(dataloader.pattern) == len(multisequence)
+        assert len(dataloader.dts) == len(multisequence)
+        assert len(dataloader.durations) == len(multisequence)
+
+    def test_shuffled_idx(
+        self, multisequence, shuffledataloader_factory, shuffled_idx_factory
+    ):
+        dataloader = shuffledataloader_factory(
+            pattern=multisequence, length=SHUFFLE_SIZE, seed=SHUFFLE_SEED
+        )
+        expected_random_idx = shuffled_idx_factory(
+            num_pattern=len(multisequence), seed=SHUFFLE_SEED, length=SHUFFLE_SIZE
+        )
+        assert len(dataloader._pat_ids) >= len(expected_random_idx)
+
+        assert_allclose(
+            dataloader._pat_ids[: len(expected_random_idx)], expected_random_idx
+        )
+
+    def test_pretransforms(
+        self, multisequence, shuffledataloader_factory, transform_plus, transform_mult
+    ):
+        dataloader = shuffledataloader_factory(
+            pattern=multisequence,
+            length=SHUFFLE_SIZE,
+            seed=SHUFFLE_SEED,
+            pre_transforms=[transform_plus, transform_mult],
+        )
+        for i, pat in enumerate(multisequence):
+            expected = transform_mult(transform_plus(pat[:, :]))
+            assert_allclose(dataloader.pattern[i], expected)
+
+    @pytest.mark.parametrize(
+        ("t", "idx"),
+        [
+            (0.0, 0),
+            (0.1, 1),
+            (0.2, 2),
+            (0.3, 3),
+            (0.4, 4),
+            (0.5, 5),
+            (0.6, 6),
+            (0.7, 7),
+            (1.2, 12),
+            (1.3, 13),
+            (1.4, 14),
+            (0.76, 7),
+            (0.399, 3),
+            (0.05, 0),
+        ],
+    )
+    def test_call(
+        self,
+        multisequence,
+        shuffledataloader_factory,
+        shuffled_idx_factory,
+        multisequence_target_factory,
+        t,
+        idx,
+    ):
+        dataloader = shuffledataloader_factory(
+            pattern=multisequence, length=SHUFFLE_SIZE, seed=SHUFFLE_SEED
+        )
+        expected_random_idx = shuffled_idx_factory(
+            num_pattern=len(multisequence), seed=SHUFFLE_SEED, length=SHUFFLE_SIZE
+        )
+        expected_pattern = multisequence_target_factory(
+            multisequence, expected_random_idx
+        )
+
+        assert_allclose(dataloader(t), expected_pattern[idx])
+
+    @pytest.mark.parametrize(
+        ("t", "idx"),
+        [
+            (0.0, 0),
+            (0.4, 4),
+            (0.5, 5),
+            (0.7, 7),
+            (1.2, 12),
+        ],
+    )
+    def test_online_transforms(
+        self,
+        multisequence,
+        shuffledataloader_factory,
+        shuffled_idx_factory,
+        multisequence_target_factory,
+        transform_plus,
+        transform_mult,
+        t,
+        idx,
+    ):
+        dataloader = shuffledataloader_factory(
+            pattern=multisequence,
+            length=SHUFFLE_SIZE,
+            seed=SHUFFLE_SEED,
+            online_transforms=[transform_plus, transform_mult],
+        )
+        expected_random_idx = shuffled_idx_factory(
+            num_pattern=len(multisequence), seed=SHUFFLE_SEED, length=SHUFFLE_SIZE
+        )
+        expected_pattern = multisequence_target_factory(
+            multisequence, expected_random_idx
+        )
+
+        expected = transform_mult(transform_plus(expected_pattern[idx]))
+        assert_allclose(dataloader(t), expected)
+
+    def test_iter(
+        self,
+        multisequence,
+        dataloader_factory,
+        shuffled_idx_factory,
+        multisequence_target_factory,
+        shuffledataloader_factory,
+    ):
+        dataloader = shuffledataloader_factory(
+            pattern=multisequence, length=SHUFFLE_SIZE, seed=SHUFFLE_SEED
+        )
+        expected_random_idx = shuffled_idx_factory(
+            num_pattern=len(multisequence), seed=SHUFFLE_SEED, length=SHUFFLE_SIZE
+        )
+        expected_pattern = multisequence_target_factory(
+            multisequence, expected_random_idx
+        )
+
+        res_iter = [x[1] for x in dataloader.iter(0.0, 1.0, DT)]
+
+        for res, exp in zip(res_iter, expected_pattern):
+            assert_allclose(res, exp)
+
+    def test_get_full_pattern(
+        self,
+        multisequence,
+        shuffledataloader_factory,
+        base_sequence,
+        base_sequence2,
+        base_sequence3,
+    ):
+        dataloader = shuffledataloader_factory(
+            pattern=multisequence, length=SHUFFLE_SIZE, seed=SHUFFLE_SEED
+        )
+
+        res = dataloader.get_full_pattern(dt=DT)
+        expected = np.concatenate(
+            (base_sequence, base_sequence2, base_sequence3), axis=0
+        )
+        assert_allclose(res, expected)
