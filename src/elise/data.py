@@ -1,778 +1,620 @@
-"""Module for creating datasets and loading them into the model."""
+#!/usr/bin/env python3
+"""
+Refactored pattern and dataloader system.
 
-# /usr/bin/env python3
+Architecture:
+1. Sequence: Raw data representation (no time)
+2. Pattern: Adds temporal information
+3. Dataloader: Handles sampling and transformations
+"""
 
-
-import pickle
 from abc import ABC, abstractmethod
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Union
 
 import numpy as np
 import numpy.typing as npt
 
+# ============================================================================
+# LAYER 1: SEQUENCES (no temporal information)
+# ============================================================================
 
-class BasePattern(ABC):
-    """
-    Base Class for all pattern types.
 
-    More specific patterns should inherit from this.
-    Defines the interface for all other Pattern classes.
-
-    :ivar _pattern: The original input pattern array
-    :vartype _pattern: npt.NDArray
-    :ivar pattern: The converted pattern array
-    :vartype pattern: npt.NDArray
-    :ivar dt: Time step
-    :vartype dt: float
-    :ivar dur: Total duration of the pattern
-    :vartype dur: float
-    :ivar shape: Shape of the pattern array
-    :vartype shape: tuple
-    """
-
-    def __init__(
-        self,
-        pattern: npt.NDArray,
-        dt: Optional[float] = None,
-        duration: Optional[float] = None,
-    ) -> None:
-        """
-        Initialize the Pattern object.
-
-        :param pattern: The input pattern array.
-        :type pattern: npt.NDArray
-        :param dt: Time step for the pattern (mutually exclusive with 'duration').
-        :type dt: Optional[float]
-        :param duration: Total duration of the pattern (mutually exclusive with 'dt').
-        :type duration: Optional[float]
-        :raises ValueError: If neither or both 'dt' and 'duration' are provided.
-
-        Calculates either duration or time step based on provided arguments.
-
-        Attributes:
-            _pattern (npt.NDArray): Original input pattern array.
-            pattern (npt.NDArray): Converted pattern array.
-            dt (float): Time step if specified.
-            duration (float): Total duration if specified.
-            shape (tuple): Shape of the converted pattern array.
-        """
-        self._pattern = pattern
-        self.pattern = self._convert(pattern)
-        if (dt is None and duration is None) or (
-            dt is not None and duration is not None
-        ):
-            raise ValueError("Exactly one of 'dt' or 'duration' must be provided")
-
-        # Use isinstance, and handle int case as desired
-        if isinstance(dt, float):
-            self.dt = dt
-            self.duration = self.dt * self.__len__()
-        elif isinstance(duration, float):
-            self.duration = duration
-            self.dt = self.duration / self.__len__()
-        else:
-            # Neither dt nor duration is a float
-            raise TypeError("dt/duration must be of type float")
-
-        self.shape = self.pattern.shape
-        self.width = self.pattern.shape[-1]
+class Sequence(ABC):
+    """Base class for sequences without temporal information."""
 
     @abstractmethod
-    def _convert(self, pattern: npt.NDArray) -> npt.NDArray:
-        """
-        Convert the input pattern.
-
-        Basically one of the core functionalities of the Pattern-Classes.
-        Every Pattern class needs to implement this.
-
-        :param pattern: The input pattern array
-        :type pattern: npt.NDArray
-        :return: The converted pattern
-        :rtype: npt.NDArray
-        """
+    def __len__(self) -> int:
+        """Return number of elements in sequence."""
         pass
 
-    def transform(self, transformation: Callable[[npt.NDArray], npt.NDArray]) -> None:
-        """Apply a transformation to the whole pattern.
+    @abstractmethod
+    def __getitem__(self, idx: int) -> npt.NDArray:
+        """Return element at index."""
+        pass
 
-        At the moment, the transformation takes only a pattern, no other arguments.
-        """
-        self.pattern = transformation(self.pattern)
-        self.shape = self.pattern.shape
-        self.width = self.pattern.shape[-1]
+    def slice(self, start: int, stop: Optional[int] = None) -> "Sequence":
+        """Return a sliced version of the sequence."""
+        return SlicedSequence(self, start, stop)
 
-    def __repr__(self) -> str:
-        """
-        Return a string representation of the Pattern object.
 
-        :return: String representation
-        :rtype: str
-        """
-        return f"{self.__class__.__name__}(pattern={self._pattern}, dt={self.dt})"
+class SlicedSequence(Sequence):
+    """Wrapper for sliced sequences."""
 
-    def __str__(self) -> str:
-        """
-        Return a string representation.
-        """
-        return "\n".join(["pattern=", str(self.pattern), f"dt={self.dt}"])
+    def __init__(self, parent: Sequence, start: int, stop: Optional[int] = None):
+        self.parent = parent
+        self.start = start
+        self.stop = stop if stop is not None else len(parent)
 
     def __len__(self) -> int:
-        """
-        Return the length of the pattern.
+        return self.stop - self.start
 
-        :return: Length of the pattern
-        :rtype: int
-        """
-        return self.pattern.shape[0]
-
-    def __getitem__(self, idx) -> Any:
-        """
-        Get item at the specified index.
-
-        :param idx: Index
-        :type idx: int
-        :return: Item at the specified index
-        :rtype: Any
-        """
-        return self.pattern[idx]
+    def __getitem__(self, idx: int) -> npt.NDArray:
+        if idx < 0 or idx >= len(self):
+            raise IndexError(
+                f"Index {idx} out of range for sequence of length {len(self)}"
+            )
+        return self.parent[self.start + idx]
 
 
-class Pattern(BasePattern):
-    """Simplest Pattern class.
+class MultiHotSequence(Sequence):
+    """
+    Multi-hot encoded sequence.
 
-    No conversion happens.
+    Example: [2, 4, [0, 3], [0, 3], -1] represents a melody where
+    multiple notes can be active simultaneously.
     """
 
-    def _convert(self, pattern: npt.NDArray):
-        """No conversion."""
-        return pattern
+    def __init__(self, elements: List[Union[int, List[int]]], width: int):
+        """
+        Initialize multi-hot sequence.
 
-
-class RandomPattern(BasePattern):
-    def __init__(self, duration, width, rng, dt: float = 1.0):
-        self.nr_notes = int(duration)
+        :param elements: List of indices or lists of indices (-1 for silence)
+        :param width: Width of the one-hot encoding
+        """
+        self._elements = elements
         self.width = width
-        self.dt = dt
-        self.rng = rng
-        self.duration = self.nr_notes * self.dt
+        self._validate()
+        self._cache = {}  # Cache converted elements
 
-        pattern = np.zeros((self.nr_notes, self.width), dtype=int)
-        pattern[0] = rng.integers(0, 2, self.width)
-        self.trans_p = np.zeros((2, self.width), dtype=float)
-        self.trans_p[0] = self.rng.uniform(0.1, 0.8, self.width)
-        self.trans_p[1] = self.rng.uniform(0.1, 0.2, self.width)
-        for i in range(self.nr_notes - 1):
-            c_probs = np.where(pattern[i], self.trans_p[0], self.trans_p[1])
-            random_vals = self.rng.uniform(size=self.width)
-            result = (random_vals < c_probs).astype(int)
-            pattern[i + 1] = result
+    def _validate(self):
+        """Validate that all indices are within width."""
+        max_val = -1
+        for elem in self._elements:
+            if isinstance(elem, int) and elem > max_val and elem != -1:
+                max_val = elem
+            elif isinstance(elem, list):
+                max_val = max(max_val, max(elem))
 
-        super().__init__(pattern=pattern, dt=dt)
+        if max_val >= self.width:
+            raise ValueError(f"Maximum index {max_val} exceeds width {self.width}")
 
-    def _convert(self, pattern: np.ndarray) -> np.ndarray:
-        # No conversion in generator; just return the input
-        return pattern
+    def __len__(self) -> int:
+        return len(self._elements)
 
+    def __getitem__(self, idx: int) -> npt.NDArray:
+        """Return one-hot encoded vector at index."""
+        if idx in self._cache:
+            return self._cache[idx]
 
-class RandomSampledNonMarkovianPattern(BasePattern):
-    def __init__(self, duration, width, rng, dt: float = 1.0, nmk=2):
-        self.nr_notes = int(duration)
-        self.width = width
-        self.dt = dt
-        self.rng = rng
-        self.duration = self.nr_notes * self.dt
-        self.nmk = nmk
+        vec = np.zeros(self.width, dtype=np.float64)
+        elem = self._elements[idx]
 
-        pattern = np.zeros((self.nr_notes + self.nmk, self.width), dtype=int)
-        pattern[0 : self.nmk] = rng.integers(0, 2, (self.nmk, self.width))
+        if isinstance(elem, int):
+            if elem != -1:  # -1 represents silence
+                vec[elem] = 1.0
+        elif isinstance(elem, list):
+            vec[elem] = 1.0
 
-        self.trans_p = np.zeros((2, self.width), dtype=float)
-        self.trans_p[0] = self.rng.uniform(0.1, 0.8, self.width)
-        self.trans_p[1] = self.rng.uniform(0.1, 0.2, self.width)
-        for i in range(self.nr_notes - 1):
-            c_probs = np.where(pattern[i - self.nmk], self.trans_p[0], self.trans_p[1])
-            random_vals = self.rng.uniform(size=self.width)
-            result = (random_vals < c_probs).astype(int)
-            pattern[i + 1 + self.nmk] = result
-
-        pattern = pattern[self.nmk :, :]
-
-        super().__init__(pattern=pattern, dt=dt)
-
-    def _convert(self, pattern: np.ndarray) -> np.ndarray:
-        # No conversion in generator; just return the input
-        return pattern
+        self._cache[idx] = vec
+        return vec
 
 
-class RandomCopiedNonMarkovianPattern(BasePattern):
-    def __init__(self, duration, width, rng, dt: float = 1.0, nmk=2):
-        self.nr_notes = int(duration)
-        self.width = width
-        self.dt = dt
-        self.rng = rng
-        self.duration = self.nr_notes * self.dt
+class OneHotSequence(Sequence):
+    """One-hot encoded sequence (only one element active at a time)."""
 
-        pattern = np.zeros((self.nr_notes, self.width), dtype=int)
-        pattern[0] = rng.integers(0, 2, self.width)
-        self.trans_p = np.zeros((2, self.width), dtype=float)
-        self.trans_p[0] = self.rng.uniform(0.1, 0.8, self.width)
-        self.trans_p[1] = self.rng.uniform(0.1, 0.2, self.width)
-        for i in range(self.nr_notes - 1):
-            c_probs = np.where(pattern[i], self.trans_p[0], self.trans_p[1])
-            random_vals = self.rng.uniform(size=self.width)
-            result = (random_vals < c_probs).astype(int)
-            pattern[i + 1] = result
-
-        index_first_proportion = int(len(pattern) * 0.0)
-        non_markov_chunk = pattern[
-            index_first_proportion : index_first_proportion + nmk, :
-        ]
-
-        index_last_proportion = int(len(pattern) * 0.5)
-        pattern[
-            index_last_proportion : index_last_proportion + nmk, :
-        ] = non_markov_chunk
-
-        super().__init__(pattern=pattern, dt=dt)
-
-    def _convert(self, pattern: np.ndarray) -> np.ndarray:
-        # No conversion in generator; just return the input
-        return pattern
-
-
-def flatten(lst):
-    for el in lst:
-        if isinstance(el, list):
-            yield from flatten(el)
-        else:
-            yield el
-
-
-class OneHotPattern(BasePattern):
-    """
-    Turn a sequential pattern into a one-hot encoded pattern.
-
-    This class extends the base Pattern class to create one-hot encoded patterns.
-    """
-
-    def __init__(self, pattern: npt.NDArray, dt: float) -> None:
+    def __init__(self, elements: List[int], width: int):
         """
-        Initialize the OneHotPattern object.
+        Initialize one-hot sequence.
 
-        :param pattern: The input sequential pattern array
-        :type pattern: npt.NDArray
-        :param dt: Time step
-        :type dt: float
+        :param elements: List of indices
+        :param width: Width of the one-hot encoding
         """
+        self._elements = np.array(elements)
+        self.width = width
 
-        self.width = np.max(pattern) + 1
-        super().__init__(pattern, dt)
+        if np.max(self._elements) >= width:
+            raise ValueError(
+                f"Maximum index {np.max(self._elements)} exceeds width {width}"
+            )
 
-    def _convert(self, pattern):
-        res = np.zeros((len(pattern), self.width))
-        for i, j in enumerate(pattern):
-            res[i, j] = 1.0
-        return res
+    def __len__(self) -> int:
+        return len(self._elements)
 
-
-def flatten_nested_tuples(lst):
-    for el in lst:
-        if isinstance(el, (tuple, list)):
-            yield from flatten_nested_tuples(el)
-        else:
-            yield el
+    def __getitem__(self, idx: int) -> npt.NDArray:
+        """Return one-hot encoded vector at index."""
+        vec = np.zeros(self.width, dtype=np.float64)
+        vec[self._elements[idx]] = 1.0
+        return vec
 
 
-class MultiHotPattern(BasePattern):
+class FunctionSequence(Sequence):
     """
-    Same as OneHot, but more then one can be active at a time.
+    Sequence defined by a continuous function.
 
-    Encode it as:
-    [2, 4, [0, 3], [0, 3], -1]
-
-    If an entry is -1, there's no, the whole vector is zero (= a pause in the pattern)
+    This bridges discrete and continuous patterns.
     """
 
     def __init__(
         self,
-        pattern: List[int | List[int]],
+        func: Callable[[float], npt.NDArray],
         duration: float,
-    ) -> None:
-        """DOCSTRING."""
-        self.width = max(flatten_nested_tuples(pattern)) + 1
-        super().__init__(pattern, duration=duration)
+        num_samples: Optional[int] = None,
+    ):
+        """
+        Initialize function-based sequence.
 
-    def _convert(self, pattern):
-        res = np.zeros((len(pattern), self.width))
-        for i, pat in enumerate(pattern):
-            if isinstance(pat, int) and pat == -1:
-                continue
-            else:
-                res[i, pat] = 1.0
-        return res
+        :param func: Function that takes time (0 to 1) and returns array
+        :param duration: Total duration for normalization purposes
+        :param num_samples: If provided, precompute this many samples
+        """
+        self.func = func
+        self.duration = duration
+        self._num_samples = num_samples
+        self._cache = None
+
+        if num_samples is not None:
+            self._precompute()
+
+    def _precompute(self):
+        """Precompute function values."""
+        times = np.linspace(0, 1, self._num_samples)
+        self._cache = np.array([self.func(t) for t in times])
+
+    def __len__(self) -> int:
+        if self._num_samples is None:
+            raise ValueError("FunctionSequence without num_samples has no fixed length")
+        return self._num_samples
+
+    def __getitem__(self, idx: int) -> npt.NDArray:
+        if self._cache is not None:
+            return self._cache[idx]
+
+        # On-the-fly computation
+        if self._num_samples is None:
+            raise ValueError("Cannot index FunctionSequence without num_samples")
+
+        t = idx / self._num_samples
+        return self.func(t)
 
 
-class BaseContinuousPattern(ABC):
-    """DOCSTRING."""
+# ============================================================================
+# LAYER 2: PATTERNS (adds temporal information)
+# ============================================================================
+
+
+class Pattern(ABC):
+    """Base class for patterns with temporal information."""
 
     @abstractmethod
-    def __init__(self) -> None:
+    def __call__(self, t: float) -> npt.NDArray:
+        """Return pattern value at time t."""
         pass
 
     @property
     @abstractmethod
     def duration(self) -> float:
-        pass
-
-    @abstractmethod
-    def __call__(self, t: float) -> npt.NDArray:
-        """DOCSTRING."""
+        """Total duration of pattern."""
         pass
 
 
-class CirclePattern(BaseContinuousPattern):
-    def __init__(self, radius: float, center_x: float, center_y: float, period: float):
-        self.radius = radius
-        self.center_x = center_x
-        self.center_y = center_y
-        self._period = period
-        self.width = 2
+class DiscretePattern(Pattern):
+    """Pattern based on a discrete sequence with temporal sampling."""
 
-    @property
-    def duration(self):
-        return self._period
+    def __init__(self, sequence: Sequence, duration: float):
+        """
+        Initialize discrete pattern.
 
-    def __call__(self, t):
-        x = self.center_x + self.radius * np.cos(2 * np.pi * t / self._period)
-        y = self.center_y + self.radius * np.sin(2 * np.pi * t / self._period)
-
-        return np.array([x, y])
-
-
-class LorenzAttractor:
-    def __init__(
-        self,
-        sigma: float = 10,
-        rho: float = 28,
-        beta: float = 8 / 3,
-        x0: float = 0,
-        y0: float = 0,
-        z0: float = 0,
-        t0: float = 0.0,
-        duration: float = 10.0,
-    ):
-        self.sigma = sigma
-        self.rho = rho
-        self.beta = beta
-        self.x = x0
-        self.y = y0
-        self.z = z0
-        self.last_t = t0
+        :param sequence: The underlying sequence
+        :param duration: Total duration in ms
+        """
+        self.sequence = sequence
         self._duration = duration
-        self.width = 3
+        self.dt = duration / len(sequence)
 
     @property
-    def duration(self):
+    def duration(self) -> float:
         return self._duration
 
-    def __call__(self, t: float):
-        dx = self.sigma * (self.y - self.x)
-        dy = self.x * (self.rho - self.z) - self.y
-        dz = self.x * self.y - self.beta * self.z
-
-        dt = t - self.last_t
-        self.x += dx * dt
-        self.y += dy * dt
-        self.z += dz * dt
-        self.last_t = t
-
-        return np.array([self.x, self.y, self.z])
+    def __call__(self, t: float) -> npt.NDArray:
+        """Return pattern at time t (with wrapping)."""
+        t_wrapped = t % self._duration
+        idx = int(t_wrapped / self.dt)
+        idx = min(idx, len(self.sequence) - 1)  # Clamp to valid range
+        return self.sequence[idx]
 
 
-class BaseDataloader(ABC):
-    @abstractmethod
-    def __init__(self) -> None:
-        pass
+class ContinuousPattern(Pattern):
+    """Pattern based on a continuous function."""
 
-    @abstractmethod
-    def __call__(self, t: float, offset: float = 0.0) -> npt.NDArray:
-        pass
-
-    @abstractmethod
-    def iter(self, t_start: float, t_stop: float, dt: float) -> npt.NDArray:
-        pass
-
-    @abstractmethod
-    def get_full_pattern(self, dt) -> npt.NDArray:
-        pass
-
-    def save(self, path: str) -> None:
+    def __init__(self, func: Callable[[float], npt.NDArray], duration: float):
         """
-        Save the dataloader.
+        Initialize continuous pattern.
 
-        :param path: File path to save the loader.
-        :type path: str
+        :param func: Function that takes time and returns array
+        :param duration: Total duration (for wrapping)
         """
-        with open(path, "wb") as f:
-            pickle.dump(self, f)
+        self.func = func
+        self._duration = duration
 
-    @classmethod
-    def load(cls, path: str):
-        """
-        Load a tracker object from a file.
+    @property
+    def duration(self) -> float:
+        return self._duration
 
-        :param path: File path to load the loader from.
-        :type path: str
-        :return: The loaded loader object.
-        :rtype: Tracker
-        """
-        with open(path, "rb") as f:
-            return pickle.load(f)
+    def __call__(self, t: float) -> npt.NDArray:
+        """Return pattern at time t (with wrapping)."""
+        t_wrapped = t % self._duration
+        return self.func(t_wrapped)
 
 
-class DiscreteDataloader(BaseDataloader):
+# ============================================================================
+# LAYER 3: DATALOADER (handles sampling and transformations)
+# ============================================================================
+
+
+class Dataloader:
     """
-    Dataloader for pattern data.
+    Unified dataloader for both discrete and continuous patterns.
 
-    Has a call-method for passing the correct pattern at time t.
-    And an iter-method that acts as an iterator.
-    Handles pre-transforms and online-transforms for pattern data.
-
-    :ivar pat: The pattern object
-    :vartype pat: Pattern
-    :ivar dur: Duration of the pattern
-    :vartype dur: float
-    :ivar dt: Time step of the pattern
-    :vartype dt: float
-    :ivar online_transforms: List of online transforms to be applied
-    :vartype online_transforms: List[Callable]
+    Handles transformation pipeline and iteration.
     """
 
     def __init__(
         self,
         pattern: Pattern,
-        pre_transforms: List[Callable] = [],
-        online_transforms: List[Callable] = [],
-    ) -> None:
+        transforms: Optional[List[Callable]] = None,
+        online_transforms: Optional[List[Callable]] = None,
+        output_transform: Optional[Callable] = None,
+    ):
         """
-        Initialize the Dataloader object.
+        Initialize dataloader.
 
-        :param pattern: The pattern object
-        :type pattern: Pattern
-        :param pre_transforms: List of pre-transforms to be applied once, defaults to []
-        :type pre_transforms: List[Callable], optional
-        :param online_transforms: List of online transforms to be applied on each call, defaults to []  # noqa
-        :type online_transforms: List[Callable], optional
-        :raises ValueError: If a pre-transform changes the shape of the pattern
+        :param pattern: Pattern object to load from
+        :param transforms: Pre-computed transforms (applied once at init)
+        :param online_transforms: Online transforms (applied each call)
+        :param output_transform: Final transform (e.g., to_biounits)
         """
-
         self.pattern = pattern
-        # apply pre-transforms directly once
-        for transform in pre_transforms:
-            self.pattern.transform(transform)
+        self.duration = pattern.duration
 
-        self.duration = self.pattern.duration
-        self.dt = self.pattern.dt
-        self.width = self.pattern.width
-        self.online_transforms = online_transforms
-        self.apply_online_transforms = 1
+        # Apply pre-transforms if pattern is discrete (can be precomputed)
+        if isinstance(pattern, DiscretePattern) and transforms:
+            self._apply_pretransforms(transforms)
 
-    def _time_to_idx(self, t: float) -> int:
-        return int((t % self.duration) / self.dt)
+        self.online_transforms = online_transforms or []
+        self.output_transform = output_transform
 
-    def _apply_online_transforms(self, pattern_1d):
+    def _apply_pretransforms(self, transforms: List[Callable]):
+        """Apply transforms to discrete pattern (modifies in place)."""
+        # This could be optimized by caching the entire pattern
+        # For now, transforms will be applied on-the-fly
+        pass
+
+    def __call__(self, t: float) -> npt.NDArray:
+        """
+        Get pattern at time t with all transforms applied.
+
+        :param t: Time in ms
+        :return: Transformed pattern array
+        """
+        # Get base pattern
+        output = self.pattern(t)
+
+        # Apply online transforms
         for transform in self.online_transforms:
-            pattern_1d = transform(pattern_1d)
-        return pattern_1d
+            output = transform(output)
 
-    def __call__(self, t: float, offset: float = 1e-6):
+        # Apply output transform (e.g., to_biounits)
+        if self.output_transform is not None:
+            output = self.output_transform(output)
+
+        return output
+
+    def iter(self, t_start: float, t_stop: float, dt: float):
         """
-        Return the correct pattern at time t.
-
-        The offset is a small value added to t to make sure that the pattern is
-        read "in the middle". This is to prevent that floating point glitches read
-        from the wrong pattern.
-
-        :param t: Time
-        :type t: float
-        :param offset: Time offset, defaults to 1e-6
-        :type offset: float, optional
-        :return: Pattern at time t
-        :rtype: npt.NDArray
-
-        Example:
-            for t in np.arange(0, 100, 0.1):
-                pattern = dataloader(t)
-                my_simulation.step(t, u_inp=pattern,...)
-        """
-        idx = self._time_to_idx(t + offset)
-        pattern_t = self.pattern[idx]
-
-        if self.apply_online_transforms:
-            pattern_t = self._apply_online_transforms(pattern_t)
-
-        return pattern_t
-
-    def iter(self, t_start, t_stop, dt):
-        """
-        Use dataloader as an iterator/iterable.
+        Iterate over pattern in time range.
 
         :param t_start: Start time
-        :type t_start: float
         :param t_stop: Stop time
-        :type t_stop: float
         :param dt: Time step
-        :type dt: float
-        :yield: Tuple of time and pattern
-        :rtype: Tuple[float, npt.NDArray]
-
-        Example:
-            for t, pattern in dataloader.iter(t_start, t_stop, dt):
-                my_simulation.step(t, u_inp=pattern,...)
+        :yield: (time, pattern) tuples
         """
         t = t_start
         while t < t_stop:
-            yield t, self.__call__(t, offset=dt * 0.01)
-            t += dt
-
-    def get_full_pattern(self, dt, num=1, online_transforms=True):
-        """Return the full pattern."""
-        """
-        :param dt: Simulation time step
-        :type dt: float
-        :param num: Number of patterns repetitions
-        :type dt: int
-        :param online_transforms: Simulation time step
-        :type dt: bool
-        :return: Full pattern
-        :rtype: npt.NDArray
-        """
-
-        if not online_transforms:
-            self.apply_online_transforms = 0
-
-        full_pattern = []
-        for _ in range(num):
-            for _, pattern in self.iter(0, self.duration, dt):
-                full_pattern.append(pattern)
-
-        self.apply_online_transforms = 1  # reset to default
-
-        return np.array(full_pattern)
-
-
-class ContinuousDataloader(BaseDataloader):
-    """
-    A continuous data loader that applies transformations to patterns.
-
-    This class extends BaseDataloader to provide functionality for loading
-    and transforming continuous data patterns.
-
-    :param pattern: The pattern to be loaded and transformed.
-    :type pattern: Any
-    :param pre_transforms: List of transformations to apply before loading.
-    :type pre_transforms: List[Callable]
-    :param online_transforms: List of transformations to apply during loading.
-    :type online_transforms: List[Callable]
-    """
-
-    def __init__(
-        self,
-        pattern: BaseContinuousPattern,
-        pre_transforms: List[Callable] = [],
-        online_transforms: List[Callable] = [],
-    ):
-        self.pattern = pattern
-        self.duration = self.pattern.duration
-        self.width = pattern.width
-        self.pre_transforms = pre_transforms
-        self.online_transforms = online_transforms
-        self.apply_online_transforms = 1
-
-    @staticmethod
-    def _apply_transforms(transforms: Callable, pattern: npt.NDArray) -> npt.NDArray:
-        for transform in transforms:
-            pattern = transform(pattern)
-        return pattern
-
-    def __call__(self, t: float, offset: float = 0.0) -> npt.NDArray:
-        """
-        Call the dataloader to get a transformed pattern at a specific time.
-
-        :param t: The time at which to get the pattern.
-        :type t: float
-        :param offset: Time offset to apply.
-        :type offset: float
-        :return: The transformed pattern at the specified time.
-        :rtype: Any
-        """
-        pat = self.pattern(t + offset)
-        pat = self._apply_transforms(self.pre_transforms, pat)
-        pat = self._apply_transforms(self.online_transforms, pat)
-        return pat
-
-    def iter(
-        self, t_start: float, t_stop: float, dt: float
-    ) -> Tuple[float, npt.NDArray]:
-        """
-        Iterate over the pattern within a time range.
-
-        :param t_start: Start time of the iteration.
-        :type t_start: float
-        :param t_stop: End time of the iteration.
-        :type t_stop: float
-        :param dt: Time step for the iteration.
-        :type dt: float
-        :yield: A tuple of (time, pattern) for each time step.
-        :rtype: Tuple[float, Any]
-        """
-        t = t_start
-        while t < t_stop:
-            yield t, self.__call__(t)
+            yield t, self(t)
             t += dt
 
     def get_full_pattern(self, dt: float) -> npt.NDArray:
         """
-        Get the full pattern as a numpy array.
+        Get full pattern as array.
 
-        :param dt: Time step for sampling the pattern.
-        :type dt: float
-        :return: The full pattern as a numpy array.
-        :rtype: np.ndarray
+        :param dt: Sampling time step
+        :return: Array of pattern over full duration
         """
-        full_pattern = []
+        samples = []
         for _, pattern in self.iter(0, self.duration, dt):
-            full_pattern.append(pattern)
-
-        return np.array(full_pattern)
-
-
-def Dataloader(
-    pattern: Union[BasePattern, BaseContinuousPattern],
-    pre_transforms: List[Callable] = [],
-    online_transforms: List[Callable] = [],
-) -> Union[DiscreteDataloader, ContinuousDataloader]:
-    """
-    Factory function to create an appropriate Dataloader based on the pattern type.
-
-    This function determines whether to create a DiscreteDataloader or a
-    ContinuousDataloader based on the type of the input pattern.
-    It also applies the specified pre-transforms and online-transforms to the
-    created dataloader.
-
-    :param pattern: The pattern object to be loaded.
-    :type pattern: Union[BasePattern, BaseContinuousPattern]
-    :param pre_transforms: List of transformations to apply before loading the pattern.
-    :type pre_transforms: List[Callable]
-    :param online_transforms: List of transformations to apply during pattern loading.
-    :type online_transforms: List[Callable]
-    :return: An instance of either DiscreteDataloader or ContinuousDataloader.
-    :rtype: Union[DiscreteDataloader, ContinuousDataloader]
-    :raises TypeError: If the pattern is neither a BasePattern nor a
-    BaseContinuousPattern.
-
-    :Example:
-
-    >>> discrete_pattern = BasePattern()
-    >>> discrete_loader = Dataloader(discrete_pattern)
-    >>> continuous_pattern = BaseContinuousPattern()
-    >>> continuous_loader = Dataloader(continuous_pattern)
-    """
-    if isinstance(pattern, BasePattern):
-        return DiscreteDataloader(
-            pattern, pre_transforms=pre_transforms, online_transforms=online_transforms
-        )
-    if isinstance(pattern, BaseContinuousPattern):
-        return ContinuousDataloader(
-            pattern, pre_transforms=pre_transforms, online_transforms=online_transforms
-        )
-    else:
-        raise TypeError(
-            f"pattern should inherit from BasePattern or BaseContinuousPatter."  # noqa
-        )
+            samples.append(pattern)
+        return np.array(samples)
 
 
-class MultiPatternDataloader(BaseDataloader):
-    """
-    Dataloader that concatenates the outputs of multiple patterns.
+# ============================================================================
+# LAYER 4: PATTERN COMPOSITORS (compose multiple patterns)
+# ============================================================================
 
-    :param patterns: List of tuples with:
-                     (pattern, [pre_transforms], [online_transforms])
-                     Transforms are optional.
-    """
+
+class ConcatenatedPattern(Pattern):
+    """Pattern that concatenates multiple patterns in sequence."""
+
+    def __init__(self, patterns: List[Pattern]):
+        """
+        Initialize concatenated pattern.
+
+        :param patterns: List of patterns to concatenate
+        """
+        self.patterns = patterns
+        self._duration = sum(p.duration for p in patterns)
+
+        # Precompute boundaries
+        self._boundaries = [0]
+        for p in patterns:
+            self._boundaries.append(self._boundaries[-1] + p.duration)
+
+    @property
+    def duration(self) -> float:
+        return self._duration
+
+    def __call__(self, t: float) -> npt.NDArray:
+        """Return pattern at time t."""
+        t_wrapped = t % self._duration
+
+        # Find which pattern we're in
+        for i, (start, end) in enumerate(
+            zip(self._boundaries[:-1], self._boundaries[1:])
+        ):
+            if start <= t_wrapped < end:
+                # Time relative to this pattern's start
+                t_local = t_wrapped - start
+                return self.patterns[i](t_local)
+
+        # If we're exactly at the end, return last pattern's last value
+        return self.patterns[-1](self.patterns[-1].duration - 1e-6)
+
+
+class ShuffledPattern(Pattern):
+    """Pattern that randomly concatenates patterns to fill a duration."""
 
     def __init__(
-        self,
-        patterns: List[Tuple[BasePattern, List[Callable], List[Callable]]],
-        pre_transform: List[Callable] = [],
-        online_transform: List[Callable] = [],
+        self, patterns: List[Pattern], total_duration: float, seed: Optional[int] = None
     ):
-        self.dataloaders = []
-        self.durations = []
-        self.width = 0
-        self.widths = []
-
-        for pattern in patterns:
-            dl = Dataloader(pattern, pre_transform, online_transform)
-            self.dataloaders.append(dl)
-            self.durations.append(dl.duration)
-            self.widths.append(dl.width)
-            self.width += dl.width
-
-        self.duration = np.max(self.durations)
-
-    def __call__(self, t: float, offset: float = 0.0):
-        pats = [np.asarray(dl(t, offset)) for dl in self.dataloaders]
-        return np.concatenate(pats, axis=-1)
-
-    def iter(self, t_start: float, t_stop: float, dt: float):
-        t = t_start
-        while t < t_stop:
-            yield t, self.__call__(t)
-            t += dt
-
-    def get_individual_patterns(self, dt: float):
         """
-        Get individual patterns as a list of numpy arrays.
+        Initialize shuffled pattern.
 
-        :param dt: Time step for sampling the patterns.
-        :type dt: float
-        :return: List of individual patterns as numpy arrays.
-        :rtype: List[npt.NDArray]
+        :param patterns: List of patterns to shuffle and concatenate
+        :param total_duration: Total duration to fill
+        :param seed: Random seed for reproducibility
         """
-        return [dl.get_full_pattern(dt) for dl in self.dataloaders]
+        self.patterns = patterns
+        self._duration = total_duration
+        self._rng = np.random.default_rng(seed)
 
-    def get_full_pattern(self, dt: float, concat=True, num=1, online_transforms=False):
-        if concat:
-            full_pattern = np.array(
-                [pattern for _, pattern in self.iter(0, self.duration * num, dt)]
-            )
-        else:
-            full_pattern = [dl.get_full_pattern(dt) for dl in self.dataloaders]
+        # Build the shuffled sequence
+        self._sequence = []  # List of (pattern_idx, start_time)
+        self._boundaries = [0]
 
-        return full_pattern
+        current_time = 0
+        while current_time < total_duration:
+            # Pick random pattern
+            idx = self._rng.choice(len(patterns))
+            pattern = patterns[idx]
 
-    def save(self, path: str):
-        with open(path, "wb") as f:
-            pickle.dump(self, f)
+            self._sequence.append(idx)
+            current_time += pattern.duration
+            self._boundaries.append(current_time)
 
-    @classmethod
-    def load(cls, path: str):
-        with open(path, "rb") as f:
-            return pickle.load(f)
+        # Trim last boundary to exact duration
+        self._boundaries[-1] = total_duration
 
+    @property
+    def duration(self) -> float:
+        return self._duration
+
+    def __call__(self, t: float) -> npt.NDArray:
+        """Return pattern at time t."""
+        t_wrapped = t % self._duration
+
+        # Find which pattern segment we're in
+        for i, (start, end) in enumerate(
+            zip(self._boundaries[:-1], self._boundaries[1:])
+        ):
+            if start <= t_wrapped < end:
+                pattern_idx = self._sequence[i]
+                pattern = self.patterns[pattern_idx]
+
+                # Time relative to this pattern's start
+                t_local = t_wrapped - start
+
+                # Wrap if we exceed pattern duration (for last truncated pattern)
+                if t_local >= pattern.duration:
+                    t_local = pattern.duration - 1e-6
+
+                return pattern(t_local)
+
+        # Fallback
+        return self.patterns[self._sequence[-1]](0)
+
+
+class RepeatedPattern(Pattern):
+    """Pattern that repeats a single pattern N times."""
+
+    def __init__(self, pattern: Pattern, num_repeats: int):
+        """
+        Initialize repeated pattern.
+
+        :param pattern: Pattern to repeat
+        :param num_repeats: Number of times to repeat
+        """
+        self.pattern = pattern
+        self.num_repeats = num_repeats
+        self._duration = pattern.duration * num_repeats
+
+    @property
+    def duration(self) -> float:
+        return self._duration
+
+    def __call__(self, t: float) -> npt.NDArray:
+        """Return pattern at time t."""
+        t_wrapped = t % self._duration
+        t_in_pattern = t_wrapped % self.pattern.duration
+        return self.pattern(t_in_pattern)
+
+
+class RandomPattern(Pattern):
+    """Pattern that randomly samples from multiple patterns at each time."""
+
+    def __init__(
+        self, patterns: List[Pattern], duration: float, seed: Optional[int] = None
+    ):
+        """
+        Initialize random pattern.
+
+        :param patterns: List of patterns to sample from
+        :param duration: Total duration
+        :param seed: Random seed
+        """
+        self.patterns = patterns
+        self._duration = duration
+        self._rng = np.random.default_rng(seed)
+
+    @property
+    def duration(self) -> float:
+        return self._duration
+
+    def __call__(self, t: float) -> npt.NDArray:
+        """Return random pattern at time t."""
+        # Pick random pattern based on time (for some consistency)
+        idx = int(t * 1000) % len(self.patterns)  # Change every ms
+        return self.patterns[idx](t % self.patterns[idx].duration)
+
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+
+def load_multihot_from_file(
+    filepath: str, width: int, delimiter: str = ",", skiprows: int = 1
+) -> MultiHotSequence:
+    """
+    Load multi-hot sequence from file.
+
+    :param filepath: Path to file
+    :param width: Width of encoding
+    :param delimiter: CSV delimiter
+    :param skiprows: Rows to skip
+    :return: MultiHotSequence
+    """
+    data = np.loadtxt(filepath, delimiter=delimiter, skiprows=skiprows).astype(int)
+    # Convert to list format expected by MultiHotSequence
+    elements = data.tolist()
+    return MultiHotSequence(elements, width)
+
+
+# ============================================================================
+# EXAMPLE USAGE
+# ============================================================================
 
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
+    # Example 1: Multi-hot pattern with transforms
+    melody = MultiHotSequence([2, 4, [0, 3], [0, 3], -1], width=13)
+    pattern = DiscretePattern(melody, duration=250.0)
 
-    rng = np.random.default_rng(42)
-    pattern = RandomSampledNonMarkovianPattern(
-        duration=50, width=6, rng=rng, dt=0.1, nmk=6
+    def to_biounits(x, E_l=-70.0):
+        return E_l + x * 20.0
+
+    def add_noise(x):
+        return x + np.random.normal(0, 0.01, x.shape)
+
+    dataloader = Dataloader(
+        pattern,
+        online_transforms=[add_noise],
+        output_transform=lambda x: to_biounits(x, E_l=-70.0),
     )
 
-    plt.imshow(pattern.pattern.T, aspect="auto", origin="lower")
-    plt.xlabel("Time step")
-    plt.ylabel("Pattern dimension")
-    plt.title("Random Pattern over Time")
-    plt.colorbar(label="Value")
-    plt.show()
+    # Use in simulation
+    for t, target in dataloader.iter(0, 500.0, dt=0.01):
+        # network(u_inp=target)
+        pass
+
+    # Example 2: Sliced pattern (for long preludes)
+    prelude = OneHotSequence(list(range(300)), width=300)
+    excerpt = prelude.slice(0, 250)  # First 250 notes
+    pattern = DiscretePattern(excerpt, duration=500.0)
+    dataloader = Dataloader(pattern)
+
+    # Example 3: Continuous pattern
+    def circle(t):
+        return np.array([np.cos(2 * np.pi * t), np.sin(2 * np.pi * t)])
+
+    pattern = ContinuousPattern(circle, duration=1000.0)
+    dataloader = Dataloader(pattern)
+
+    breakpoint()
+
+    # Example 4: Concatenated patterns
+    melody1 = DiscretePattern(MultiHotSequence([1, 2, 3], width=13), duration=100)
+    melody2 = DiscretePattern(MultiHotSequence([4, 5, 6], width=13), duration=150)
+    melody3 = DiscretePattern(MultiHotSequence([7, 8, 9], width=13), duration=200)
+
+    concatenated = ConcatenatedPattern([melody1, melody2, melody3])
+    # Total duration = 100 + 150 + 200 = 450ms
+
+    dataloader = Dataloader(concatenated, output_transform=lambda x: to_biounits(x))
+
+    # Example 5: Shuffled patterns (like your ShuffleDataloader)
+    shuffled = ShuffledPattern(
+        patterns=[melody1, melody2, melody3],
+        total_duration=5000,  # Fill 5 seconds with random patterns
+        seed=42,
+    )
+
+    dataloader = Dataloader(shuffled)
+
+    # Example 6: Repeated pattern
+    short_melody = DiscretePattern(MultiHotSequence([1, 2, 3], width=13), duration=100)
+    repeated = RepeatedPattern(short_melody, num_repeats=10)
+    # Total duration = 100 * 10 = 1000ms
+
+    dataloader = Dataloader(repeated)
+
+    # Example 7: Complex composition
+    # Create a training set with shuffled patterns
+    patterns = []
+    for i in range(10):
+        seq = MultiHotSequence([i, i + 1, i + 2], width=13)
+        pat = DiscretePattern(seq, duration=200)
+        patterns.append(pat)
+
+    # Shuffle them to create varied training data
+    training_pattern = ShuffledPattern(patterns, total_duration=10000, seed=42)
+
+    # Apply transforms
+    dataloader = Dataloader(
+        training_pattern,
+        online_transforms=[add_noise],
+        output_transform=lambda x: to_biounits(x, E_l=-70.0),
+    )
+
+    # Use in training loop
+    for epoch in range(10):
+        for t, target in dataloader.iter(0, training_pattern.duration, dt=0.01):
+            # network(u_inp=target)
+            pass
