@@ -7,6 +7,7 @@ import pickle
 from abc import ABC, abstractmethod
 from typing import Any, Callable, List, Optional, Tuple, Union
 
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 
@@ -328,6 +329,77 @@ class BaseContinuousPattern(ABC):
     def __call__(self, t: float) -> npt.NDArray:
         """DOCSTRING."""
         pass
+
+
+class SummedSinesPattern(Pattern):
+    def __init__(self, frequencies: list, duration: float):
+        """
+        Initialize summed sines pattern.
+        :param frequencies: List of frequencies to sum
+        self.frequencies = frequencies
+        self._duration = duration
+        """
+        self.frequencies = frequencies
+        self._duration = duration
+        self.width = 1
+
+    @property
+    def duration(self) -> float:
+        return self._duration
+
+    def __call__(self, t: float) -> npt.NDArray:
+        """Return pattern at time t."""
+        result = np.zeros(1)
+        for freq in self.frequencies:
+            result += np.sin(2 * np.pi * freq * t / 1000.0)
+        return result
+
+    def get_full_pattern(self, dt, online_transforms=False, num=3) -> npt.NDArray:
+        """Return the full pattern."""
+        time_points = int(self.duration / dt)
+        full_pattern = np.zeros((time_points, 1))
+        for i in range(time_points):
+            t = i * dt
+            full_pattern[i] = self.__call__(t)
+        return full_pattern
+
+
+class StackedandSummedSinnesPattern(Pattern):
+    def __init__(self, nr_channels, frequencies, duration: float):
+        """
+        Initialize summed random sines pattern.
+        :param frequencies: List of list of frequencies to sum
+        self.nr_channels = nr_channels
+        self.frequencies = frequencies
+        self._duration = duration
+        """
+        self.nr_channels = nr_channels
+        self.frequencies = frequencies
+        self._duration = duration
+        self.width = nr_channels
+
+    @property
+    def duration(self) -> float:
+        return self._duration
+
+    def __call__(self, t: float) -> npt.NDArray:
+        """Return pattern at time t."""
+        result = np.zeros(self.nr_channels)
+        for i in range(self.nr_channels):
+            freqs = self.frequencies[i]
+            for freq in freqs:
+                result[i] += np.sin(2 * np.pi * freq * t / 1000.0)
+
+        return result
+
+    def get_full_pattern(self, dt, online_transforms=False, num=None) -> npt.NDArray:
+        """Return the full pattern."""
+        time_points = int(self.duration / dt)
+        full_pattern = np.zeros((time_points, 1))
+        for i in range(time_points):
+            t = i * dt
+            full_pattern[i] = self.__call__(t)
+        return full_pattern
 
 
 class CirclePattern(BaseContinuousPattern):
@@ -763,16 +835,35 @@ class MultiPatternDataloader(BaseDataloader):
 
 
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-
-    rng = np.random.default_rng(42)
-    pattern = RandomSampledNonMarkovianPattern(
-        duration=50, width=6, rng=rng, dt=0.1, nmk=6
+    # Create example patterns
+    freqs = [2, 5, 10]
+    freqs_freqs = [[2, 5, 10], [1, 6, 9], [4, 8, 12]]
+    duration = 1000  # ms
+    simple_pattern = SummedSinesPattern(freqs, duration)
+    random_pattern = StackedandSummedSinnesPattern(
+        nr_channels=3, frequencies=freqs_freqs, duration=duration
     )
 
-    plt.imshow(pattern.pattern.T, aspect="auto", origin="lower")
-    plt.xlabel("Time step")
-    plt.ylabel("Pattern dimension")
-    plt.title("Random Pattern over Time")
-    plt.colorbar(label="Value")
+    # Create time samples (0–1000 ms)
+    t_vals = np.linspace(0, duration, 500)
+
+    # Sample both patterns
+    simple_vals = np.array([simple_pattern(t) for t in t_vals]).squeeze()
+    random_vals = np.array([random_pattern(t) for t in t_vals])
+
+    # Plot results
+    fig, axes = plt.subplots(2, 1, figsize=(10, 6))
+    axes[0].plot(t_vals, simple_vals)
+    axes[0].set_title("SummedSinesPattern")
+    axes[0].set_xlabel("Time (ms)")
+    axes[0].set_ylabel("Amplitude")
+
+    for ch in range(random_vals.shape[1]):
+        axes[1].plot(t_vals, random_vals[:, ch], label=f"Channel {ch+1}")
+    axes[1].set_title("SummedRandomSinesPattern")
+    axes[1].set_xlabel("Time (ms)")
+    axes[1].set_ylabel("Amplitude")
+    axes[1].legend()
+
+    plt.tight_layout()
     plt.show()

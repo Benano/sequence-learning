@@ -14,6 +14,8 @@ from elise.data import (
     RandomCopiedNonMarkovianPattern,
     RandomPattern,
     RandomSampledNonMarkovianPattern,
+    StackedandSummedSinnesPattern,
+    SummedSinesPattern,
 )
 from elise.data_transforms import (
     AddNothing,
@@ -116,18 +118,24 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         else:
             online_transforms.append(WhiteNoise(pattern_params.noise_sigma))
 
-    if len(patterns) > 1:
-        dataloader = MultiPatternDataloader(
-            patterns=patterns,
-            pre_transform=pre_transforms,
-            online_transform=online_transforms,
-        )
-    else:
-        dataloader = Dataloader(
-            patterns[0],
-            pre_transforms=pre_transforms,
-            online_transforms=online_transforms,
-        )
+    # if len(patterns) > 1:
+    #     dataloader = MultiPatternDataloader(
+    #         patterns=patterns,
+    #         pre_transform=pre_transforms,
+    #         online_transform=online_transforms,
+    #     )
+    # else:
+    #     dataloader = Dataloader(
+    #         patterns[0],
+    #         pre_transforms=pre_transforms,
+    #         online_transforms=online_transforms,
+    #     )
+
+    # Summed sines
+    freqs = [1, 4, 5]
+    dataloader = SummedSinesPattern(
+        frequencies=freqs, duration=pattern_params.pattern_duration
+    )
 
     import matplotlib.pyplot as plt
 
