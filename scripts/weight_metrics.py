@@ -43,7 +43,7 @@ def analyze_connectivity_metrics(
     sparsity = 1 - (total_connections / (num_total * num_total))
 
     # # Largest singular value
-    # largest_singular_value = np.linalg.svd(weight_matrix, compute_uv=False)[0]
+    largest_singular_value = np.linalg.svd(weight_matrix, compute_uv=False)[0]
 
     # Spectral radius (max absolute eigenvalue)
     spectral_radius = np.max(np.abs(np.linalg.eigvals(weight_matrix)))
@@ -72,7 +72,7 @@ def analyze_connectivity_metrics(
         "max_in_degree": max_in_degree,
         "frac_isolated_lateral": frac_isolated,
         "sparsity": sparsity,
-        # "largest_singular_value": largest_singular_value,
+        "largest_singular_value": largest_singular_value,
         "spectral_radius": spectral_radius,
         "is_acyclic": is_acyclic,
         "num_cycles": num_cycles,

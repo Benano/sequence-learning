@@ -25,6 +25,8 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run):
         artifact_path / "network.pkl",
     )
 
+    dataloader1
+
     patterns = []
     for pattern_name in experiment_params.patterns:
         pattern_file = pattern_path / f"{pattern_name}.txt"

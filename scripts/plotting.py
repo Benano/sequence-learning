@@ -66,9 +66,6 @@ def plot_connectivity_network(weight_matrix, num_vis: int = None):
     return fig
 
 
-# Usage
-
-
 def plot_weights_grid(network):
     dendritic_weights = network.dendritic_weights
     somatic_weights = network.somatic_weights

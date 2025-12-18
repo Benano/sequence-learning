@@ -6,18 +6,18 @@ group_tag = ['preludes_fast']
 pre_transforms =  ['to_biounits'] # ORDER MATTERS GREATLY
 
 [network_params]
-num_lat = 50
+num_lat = 30
 num_vis = 13
 
 [weight_params]
 weight_type = "developed" # developed, random
 p = 0.2
-q = 0.0
+q = 0.00
 p0 = 0.04
-W_vis_vis = [-0.5, 1.0]
-W_vis_lat = [-0.5, 1.0]
-W_lat_lat = [-0.5, 1.0]
-W_lat_vis = [-0.5, 1.0]
+W_vis_vis = [-0.5, 0.5]
+W_vis_lat = [-0.5, 0.5]
+W_lat_lat = [-0.5, 0.5]
+W_lat_vis = [-0.5, 0.5]
 d_den = [5, 25]
 d_som = [5, 25]
 d_int = 15
@@ -29,14 +29,14 @@ num_cycles = 0
 
 [simulation_params]
 dt = 0.1
-training_epochs = 50
+training_epochs = 200
 replay_epochs = 50
 training_cycles = 5
 validation_cycles = 2
 replay_cycles = 2
-eta_out = 10e-2
-eta_lat = 10e-1
-eta_decay = 0.90
+eta_out = 5e-3
+eta_lat = 5e-2
+eta_decay = 1
 
 [pattern_params]
 pattern_duration = 250.0
