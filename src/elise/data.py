@@ -351,21 +351,17 @@ class SummedSinesPattern(Pattern):
         """Return pattern at time t."""
         result = np.zeros(1)
         for freq in self.frequencies:
-            result += np.sin(2 * np.pi * freq * t / 1000.0)
-        return result
+            result += np.sin(2 * np.pi * freq * t / self.duration) / len(
+                self.frequencies
+            )
 
-    def get_full_pattern(self, dt, online_transforms=False, num=3) -> npt.NDArray:
-        """Return the full pattern."""
-        time_points = int(self.duration / dt)
-        full_pattern = np.zeros((time_points, 1))
-        for i in range(time_points):
-            t = i * dt
-            full_pattern[i] = self.__call__(t)
-        return full_pattern
+        # rescale to -1 to 1
+
+        return result
 
 
 class StackedandSummedSinnesPattern(Pattern):
-    def __init__(self, nr_channels, frequencies, duration: float):
+    def __init__(self, frequencies, period: float):
         """
         Initialize summed random sines pattern.
         :param frequencies: List of list of frequencies to sum
@@ -373,22 +369,27 @@ class StackedandSummedSinnesPattern(Pattern):
         self.frequencies = frequencies
         self._duration = duration
         """
-        self.nr_channels = nr_channels
+        self.nr_channels = len(frequencies)
         self.frequencies = frequencies
-        self._duration = duration
-        self.width = nr_channels
+        self._period = period
+        self.width = len(frequencies)
+        self.offsets = np.random.uniform(0, period, self.nr_channels)
 
     @property
     def duration(self) -> float:
-        return self._duration
+        return self._period
 
     def __call__(self, t: float) -> npt.NDArray:
         """Return pattern at time t."""
         result = np.zeros(self.nr_channels)
+        # random offset
         for i in range(self.nr_channels):
-            freqs = self.frequencies[i]
-            for freq in freqs:
-                result[i] += np.sin(2 * np.pi * freq * t / 1000.0)
+            for freq in self.frequencies[i]:
+                result[i] += (
+                    np.sin(2 * np.pi * freq * (t + self.offsets[i]) / self._period)
+                    / len(self.frequencies[i])
+                    * 0.8
+                )
 
         return result
 
@@ -416,7 +417,7 @@ class CirclePattern(BaseContinuousPattern):
 
     def __call__(self, t):
         x = self.center_x + self.radius * np.cos(2 * np.pi * t / self._period)
-        y = self.center_y + self.radius * np.sin(2 * np.pi * t / self._period)
+        y = self.c
 
         return np.array([x, y])
 
@@ -703,7 +704,9 @@ class ContinuousDataloader(BaseDataloader):
             yield t, self.__call__(t)
             t += dt
 
-    def get_full_pattern(self, dt: float) -> npt.NDArray:
+    def get_full_pattern(
+        self, dt: float, online_transforms=None, num=None
+    ) -> npt.NDArray:
         """
         Get the full pattern as a numpy array.
 

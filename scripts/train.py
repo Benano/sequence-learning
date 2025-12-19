@@ -2,6 +2,7 @@
 import copy
 from collections import defaultdict
 
+import matplotlib.pyplot as plt
 import neptune
 import numpy as np
 from tqdm import tqdm
@@ -9,6 +10,7 @@ from utils import load_pattern_flexible
 from weight_metrics import analyze_connectivity_metrics
 
 from elise.data import (
+    ContinuousDataloader,
     Dataloader,
     MultiPatternDataloader,
     RandomCopiedNonMarkovianPattern,
@@ -132,12 +134,47 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     #     )
 
     # Summed sines
-    freqs = [1, 4, 5]
-    dataloader = SummedSinesPattern(
-        frequencies=freqs, duration=pattern_params.pattern_duration
-    )
+    # freqs = [1, 4, 5, 10, 12]
+    # pattern = SummedSinesPattern(
+    #     frequencies=freqs, duration=pattern_params.pattern_duration
+    # )
+    # dataloader = ContinuousDataloader(
+    #     pattern,
+    #     pre_transforms=pre_transforms,
+    #     online_transforms=online_transforms,
+    # )
 
-    import matplotlib.pyplot as plt
+    freqs_freqs = [
+        [1, 4, 5],
+        [2, 6, 9],
+        [3, 7, 11],
+        [3, 2, 8],
+        [5, 10, 12],
+        [4, 8, 9],
+        [1, 6, 11],
+        [2, 5, 7],
+        [3, 4, 10],
+        [1, 9, 12],
+        [2, 3, 8],
+        [6, 7, 11],
+        [1, 5, 10],
+        [4, 6, 12],
+        [2, 9, 11],
+        [3, 5, 7],
+        [1, 2, 4],
+        [8, 9, 10],
+        [6, 11, 12],
+        [3, 7, 8],
+    ]
+
+    pattern = StackedandSummedSinnesPattern(
+        freqs_freqs, period=pattern_params.pattern_duration
+    )
+    dataloader = ContinuousDataloader(
+        pattern,
+        pre_transforms=pre_transforms,
+        online_transforms=online_transforms,
+    )
 
     # Create imshow of pattern
     target_pattern = dataloader.get_full_pattern(simulation_params.dt)

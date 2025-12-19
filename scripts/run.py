@@ -134,7 +134,7 @@ def main(parameter_tag, saving, debug):
     ) = train_main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng)
 
     network.save(artifact_path / "network.pkl")
-    dataloader.save(artifact_path / "dataloader.pkl")
+    # dataloader.save(artifact_path / "dataloader.pkl")
     validation_tracker.save_dict(artifact_path / "validation_dict.pkl")
     train_tracker.save_dict(artifact_path / "train_dict.pkl")
     replay_tracker.save_dict(artifact_path / "replay_dict.pkl")
@@ -143,7 +143,7 @@ def main(parameter_tag, saving, debug):
 
     if saving:
         neptune_run["network"].upload(str(artifact_path / "network.pkl"))
-        neptune_run["dataloader"].upload(str(artifact_path / "dataloader.pkl"))
+        # neptune_run["dataloader"].upload(str(artifact_path / "dataloader.pkl"))
         neptune_run["replay_dict"].upload(str(artifact_path / "replay_dict.pkl"))
         neptune_run["train_dict"].upload(str(artifact_path / "train_dict.pkl"))
         neptune_run["epoch_dict"].upload(str(artifact_path / "epoch_dict.pkl"))

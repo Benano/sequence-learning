@@ -218,6 +218,55 @@ def plot_activity_in_time(train_output, replay_output, dt):
     return ani
 
 
+def plot_activity_lines(train_target, train_output, replay_output, dt):
+    target_len = train_target.shape[1]
+    last_train = train_output[:, -target_len:]
+    first_three_replay = replay_output[:, : target_len * 3]
+    time_axis_train = np.arange(last_train.shape[1]) * dt
+    time_axis_replay = np.arange(first_three_replay.shape[1]) * dt
+    time_axis_full = np.arange(last_train.shape[1] + first_three_replay.shape[1]) * dt
+
+    full_target = np.concatenate(
+        (train_target, train_target, train_target, train_target), axis=1
+    )
+
+    fig, ax = plt.subplots(train_target.shape[0], 1, figsize=(12, 8), sharex=True)
+    for neuron_idx in range(train_target.shape[0]):
+        # Plot target for full duration
+        ax[neuron_idx].plot(
+            time_axis_full,
+            full_target[
+                neuron_idx, : last_train.shape[1] + first_three_replay.shape[1]
+            ],
+            color="gray",
+            linestyle="--",
+            label="Target" if neuron_idx == 0 else "",
+        )
+
+        # Plot last training output
+        ax[neuron_idx].plot(
+            time_axis_train,
+            last_train[neuron_idx, :],
+            color="blue",
+            label="Training Output" if neuron_idx == 0 else "",
+        )
+        # Plot first three replay outputs
+        ax[neuron_idx].plot(
+            time_axis_replay + time_axis_train[-1] + dt,
+            first_three_replay[neuron_idx, :],
+            color="red",
+            label="Replay Output" if neuron_idx == 0 else "",
+        )
+        ax[neuron_idx].set_ylabel(f"Neuron {neuron_idx}")
+        if neuron_idx == 0:
+            ax[neuron_idx].legend()
+
+    plt.xlabel("Time (ms)")
+    plt.show()
+
+    breakpoint()
+
+
 def plot_activity_target_match(
     train_output, replay_output, train_target, start_time, step
 ):
@@ -447,7 +496,8 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
 
     train_output = train["u_visible"][-last_train:].T
     replay_output = replay["u_visible"][: first_replay * 5].T
-    train_target = train["u_inp_visible"][-last_train:].T
+    train_target = train["u_inp_visible"][:last_train].T
+
     dpi = 300
     start_time = (
         pattern_params.pattern_duration
@@ -455,6 +505,8 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
         * sim_params.training_epochs
     )
     step = sim_params.dt * track_params.sim_step
+
+    plot_activity_lines(train_target, train_output, replay_output, dt)
 
     fig = plot_weights_grid(network)
     save_fig(fig, "weights_grid.png", figure_path, neptune_run, dpi)
