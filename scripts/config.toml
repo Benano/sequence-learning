@@ -1,8 +1,8 @@
 [experiment_params]
 neptune_project = "Elise-tests"
 seed = 2
-patterns = ['fuer_elise_4']
-group_tag = ['small_elise']
+patterns = ['fuer_elise_ye']
+group_tag = ['weak_err_0.1_elise']
 pre_transforms =  ['to_biounits'] # ORDER MATTERS GREATLY
 
 [network_params]
@@ -70,6 +70,7 @@ vars_train = [
   ["u", "visible" ],
   ["u_inp", "visible" ],
   ["r", "visible" ],
+  ["error", "all" ],
   ]
 
 vars_val = [
@@ -85,4 +86,5 @@ vars_epoch = [
 vars_replay = [
   ["u", "visible" ],
   ["r", "visible" ],
+  ["error", "all" ],
   ]

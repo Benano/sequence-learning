@@ -27,6 +27,7 @@ class Network:
         self.num_lat = network_params.num_lat
         self.num_vis = network_params.num_vis
         self.num_all = self.num_lat + self.num_vis
+        self.error = np.zeros(self.num_all)
 
         self.dendritic_weights, self.dendritic_delays = dendritic_weights(
             num_vis=self.num_vis, num_lat=self.num_lat
@@ -147,7 +148,7 @@ class Network:
         self.r_exc = self.rate_buffer.get(self.dt_somatic_delays)
         self.r_inh = self.rate_buffer.get(self.dt_interneuron_delays)
 
-        dudt, dvdt, dwdt, dr_bar_dt = total_diff_eq(
+        dudt, dvdt, dwdt, dr_bar_dt, error = total_diff_eq(
             u=self.u,
             v=self.v,
             w_den=self.dendritic_weights,
@@ -170,6 +171,8 @@ class Network:
             b=self.neuron_params.b,
             lam=self.neuron_params.lam,
         )
+
+        self.error = error
 
         return dudt, dvdt, dwdt, dr_bar_dt
 
@@ -336,16 +339,25 @@ def eq_dudt(
     return dudt
 
 
-@numba.njit()
-def eq_dwdt(phi_u: npt.NDArray, phi_v: npt.NDArray, r_bar: npt.NDArray) -> npt.NDArray:
+# @numba.njit()
+def eq_dwdt(error: npt.NDArray, r_bar: npt.NDArray) -> npt.NDArray:
     """Urbanczik-Senn plasiticity rule."""
-    dwdt = np.outer(phi_u - phi_v, r_bar)
+    thresh = 0.1
+    mask = np.abs(error) > thresh
+    error = error * mask
+    dwdt = np.outer(error, r_bar)
     np.fill_diagonal(dwdt, 0)
 
     return dwdt
 
 
 @numba.njit()
+def eq_error(phi_u: npt.NDArray, phi_v: npt.NDArray) -> npt.NDArray:
+    """Calculate the instantaneous error between somatic and dendritic prediction."""
+    return phi_u - phi_v
+
+
+# @numba.njit()
 def total_diff_eq(
     u: npt.NDArray,
     v: npt.NDArray,
@@ -368,7 +380,7 @@ def total_diff_eq(
     a: float,
     b: float,
     lam: float,
-) -> Tuple[npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray]:
+) -> Tuple[npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray]:
     """
     Calculate the total differential equations for a neural network model.
 
@@ -459,6 +471,7 @@ def total_diff_eq(
     phi_u = eq_phi(u, a, b)
     v_rescaled = eq_rescale_v(v, g_l, g_den, E_l)
     phi_v = eq_phi(v_rescaled, a, b)
-    dwdt = eq_dwdt(phi_u, phi_v, r_bar)
+    error = eq_error(phi_u, phi_v)
+    dwdt = eq_dwdt(error, r_bar)
 
-    return dudt, dvdt, dwdt, dr_bar_dt
+    return dudt, dvdt, dwdt, dr_bar_dt, error
