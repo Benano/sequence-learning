@@ -218,6 +218,53 @@ def plot_activity_in_time(train_output, replay_output, dt):
     return ani
 
 
+def plot_activity_lines(train_target, train_output, replay_output, dt):
+    target_len = train_target.shape[1]
+    last_train = train_output[:, -target_len:]
+    first_three_replay = replay_output[:, : target_len * 3]
+    time_axis_train = np.arange(last_train.shape[1]) * dt
+    time_axis_replay = np.arange(first_three_replay.shape[1]) * dt
+    time_axis_full = np.arange(last_train.shape[1] + first_three_replay.shape[1]) * dt
+
+    full_target = np.concatenate(
+        (train_target, train_target, train_target, train_target), axis=1
+    )
+
+    fig, ax = plt.subplots(train_target.shape[0], 1, figsize=(12, 8), sharex=True)
+    for neuron_idx in range(train_target.shape[0]):
+        # Plot target for full duration
+        ax[neuron_idx].plot(
+            time_axis_full,
+            full_target[
+                neuron_idx, : last_train.shape[1] + first_three_replay.shape[1]
+            ],
+            color="gray",
+            linestyle="--",
+            label="Target" if neuron_idx == 0 else "",
+        )
+
+        # Plot last training output
+        ax[neuron_idx].plot(
+            time_axis_train,
+            last_train[neuron_idx, :],
+            color="blue",
+            label="Training Output" if neuron_idx == 0 else "",
+        )
+        # Plot first three replay outputs
+        ax[neuron_idx].plot(
+            time_axis_replay + time_axis_train[-1] + dt,
+            first_three_replay[neuron_idx, :],
+            color="red",
+            label="Replay Output" if neuron_idx == 0 else "",
+        )
+        ax[neuron_idx].set_ylabel(f"Neuron {neuron_idx}")
+        if neuron_idx == 0:
+            ax[neuron_idx].legend()
+
+    plt.xlabel("Time (ms)")
+    plt.show()
+
+
 def plot_activity_target_match(
     train_output, replay_output, train_target, start_time, step
 ):
@@ -418,6 +465,44 @@ def plot_weights_in_time(epoch_tracker, validation_tracker, config):
     plt.tight_layout()
 
     return fig
+
+
+def plot_errors(train_error, replay_error):
+    begin_train_error = train_error[:1000, :10]
+    train_error = train_error[-1000:, :10]
+    replay_error = replay_error[:1000, :10]
+    replay_end = replay_error[-1000:, :10]
+
+    concat_errors = np.concatenate(
+        (begin_train_error, train_error, replay_error, replay_end), axis=0
+    )
+
+    # concatenate all errors
+    fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+    ax.plot(concat_errors)
+    ax.set_title("Training and Replay Errors Over Time")
+    ax.axvline(
+        len(train_error) + len(begin_train_error),
+        color="red",
+        linestyle="--",
+        label="Start of Replay",
+    )
+    ax.axvline(
+        len(begin_train_error),
+        color="green",
+        linestyle="--",
+        label="End of Initial Training",
+    )
+    ax.axvline(
+        len(begin_train_error) + len(train_error) + len(replay_error),
+        color="orange",
+        linestyle="--",
+        label="End of Replay",
+    )
+    ax.legend()
+    ax.set_xlabel("Time Step")
+    ax.set_ylabel("Error")
+    plt.show()
 
 
 def main(full_config, run_path, artifact_path, figure_path, neptune_run):
