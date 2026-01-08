@@ -98,23 +98,22 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         "nothing": AddNothing(50),
     }
 
+    online_transform_dict = {
+        "noise_corr": CorrelatedNoise(
+            pattern_params.noise_sigma,
+            pattern_params.noise_tau,
+            simulation_params.dt,
+        ),
+        "noise_white": WhiteNoise(pattern_params.noise_sigma),
+    }
+
     pre_transforms = []
     for transform in experiment_params.pre_transforms:
         pre_transforms.append(pre_transform_dict[transform])
 
     online_transforms = []
-    if pattern_params.noise_sigma > 0:
-        if pattern_params.noise_tau > 0:
-            online_transforms.append(
-                CorrelatedNoise(
-                    pattern_params.noise_sigma,
-                    pattern_params.noise_tau,
-                    simulation_params.dt,
-                )
-            )
-
-        else:
-            online_transforms.append(WhiteNoise(pattern_params.noise_sigma))
+    for transform in experiment_params.online_transforms:
+        online_transforms.append(online_transform_dict[transform])
 
     if len(patterns) > 1:
         dataloader = MultiPatternDataloader(
@@ -298,16 +297,14 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     else:
         first = 10
 
-    replay_params = full_config.replay_params
-
-    if replay_params.partial_replay:
+    if experiment_params.partial_replay:
         network.reset_activity()
 
     # Create dictionary to store losses that uses list as value
     losses = defaultdict(list)
 
     replay_network = copy.deepcopy(network)
-    disruption = replay_params.disruption
+    disruption = experiment_params.disruption
 
     for epoch in tqdm(range(simulation_params.replay_epochs)):
         for t in np.arange(0, replay_duration, simulation_params.dt):
@@ -316,13 +313,13 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
             else:
                 pass
 
-            if replay_params.partial_replay and epoch == 1:
+            if experiment_params.partial_replay and epoch == 1:
                 u_inp = copy.deepcopy(replay_network.get_val("u", "visible"))
                 u_tar = dataloader(t)[:first]
                 u_inp[:first] = u_tar
-                replay_network(u_inp=u_inp, learn=replay_params.replay_learning)
+                replay_network(u_inp=u_inp, learn=experiment_params.replay_learning)
             else:
-                replay_network(u_inp=None, learn=replay_params.replay_learning)
+                replay_network(u_inp=None, learn=experiment_params.replay_learning)
 
             replay_tracker.track(replay_network, t)
 
