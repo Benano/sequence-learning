@@ -127,9 +127,6 @@ class Config:
 class FullConfig:
     def __init__(self, config_file: str):
         config = Config(config_file)
-        self.experiment_params = self._create_config(
-            ExperimentConfig, config.get_section("experiment_params")
-        )
         self.network_params = self._create_config(
             NetworkConfig, config.get_section("network_params")
         )

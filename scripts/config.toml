@@ -39,15 +39,13 @@ eta_decay = 0.99
 
 [pattern_params]
 pattern_duration = 250.0
-pattern_dt = 1.6
-noise_sigma = 0.0
-noise_tau = 0.0
+pattern_dt = 1.0
+noise_sigma = 8.0
+noise_tau = 100.0
 non_markov = 12
 non_markov_type = "copied"
 
 [replay_params]
-partial_replay = false
-replay_learning = true
 
 [neuron_params]
 C_v = 1.0

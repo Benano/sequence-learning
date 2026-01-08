@@ -61,13 +61,16 @@ def main(parameter_tag, saving, debug):
 
     print(saving)
 
+    # load experiment config from experiment.toml
+    with open("experiment.toml", "rb") as f:
+        experiment_config = toml.load(f)
+
     config_path = Path("config.toml").resolve()
     full_config = FullConfig(config_path)
-    experiment_params = full_config.experiment_params
-    pattern_name = "_".join(experiment_params.patterns)
+    pattern_name = "_".join(experiment_config["patterns"])
 
     # Set the seed in the config
-    rng = np.random.default_rng(experiment_params.seed)
+    rng = np.random.default_rng(experiment_config["seed"])
     run_path = Path.cwd()
 
     # Create directories for artifacts, figures, and patterns
@@ -81,7 +84,7 @@ def main(parameter_tag, saving, debug):
     if parameter_tag:
         tags.append(parameter_tag)
 
-    project_name = experiment_params.neptune_project
+    project_name = experiment_config["neptune_project"]
 
     if debug:
         full_config.simulation_params = make_debug_sim_params(
@@ -101,7 +104,7 @@ def main(parameter_tag, saving, debug):
             name=run_path.name,
             tags=tags,
         )
-        neptune_run["sys/group_tags"].add(experiment_params.group_tag)
+        neptune_run["sys/group_tags"].add(experiment_config["group_tag"])
 
     run_id = neptune_run["sys/id"].fetch()
     print(f"Run ID: {run_id}")  # Print the run ID for reference
@@ -131,7 +134,15 @@ def main(parameter_tag, saving, debug):
         validation_tracker,
         replay_tracker,
         epoch_tracker,
-    ) = train_main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng)
+    ) = train_main(
+        experiment_config,
+        full_config,
+        run_path,
+        artifact_path,
+        pattern_path,
+        neptune_run,
+        rng,
+    )
 
     network.save(artifact_path / "network.pkl")
     dataloader.save(artifact_path / "dataloader.pkl")

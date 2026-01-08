@@ -32,8 +32,16 @@ from elise.tracker import Tracker
 from elise.weights import DendriticWeights, RandomSomaticWeights, SomaticWeights
 
 
-def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
-    experiment_params = full_config.experiment_params
+def main(
+    experiment_config,
+    full_config,
+    run_path,
+    artifact_path,
+    pattern_path,
+    neptune_run,
+    rng,
+):
+    experiment_params = experiment_config
     neuron_params = full_config.neuron_params
     network_params = full_config.network_params
     simulation_params = full_config.simulation_params
@@ -42,7 +50,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     track_params = full_config.tracking_params
 
     patterns = []
-    for pattern_name in experiment_params.patterns:
+    for pattern_name in experiment_params["patterns"]:
         if pattern_name == "random":
             if pattern_params.non_markov_type == "none":
                 pattern_rng = copy.deepcopy(rng)
@@ -108,11 +116,11 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     }
 
     pre_transforms = []
-    for transform in experiment_params.pre_transforms:
+    for transform in experiment_params["pre_transforms"]:
         pre_transforms.append(pre_transform_dict[transform])
 
     online_transforms = []
-    for transform in experiment_params.online_transforms:
+    for transform in experiment_params["online_transforms"]:
         online_transforms.append(online_transform_dict[transform])
 
     if len(patterns) > 1:
@@ -297,14 +305,14 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     else:
         first = 10
 
-    if experiment_params.partial_replay:
+    if experiment_params["partial_replay"]:
         network.reset_activity()
 
     # Create dictionary to store losses that uses list as value
     losses = defaultdict(list)
 
     replay_network = copy.deepcopy(network)
-    disruption = experiment_params.disruption
+    disruption = experiment_params["disruption"]
 
     for epoch in tqdm(range(simulation_params.replay_epochs)):
         for t in np.arange(0, replay_duration, simulation_params.dt):
@@ -313,13 +321,13 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
             else:
                 pass
 
-            if experiment_params.partial_replay and epoch == 1:
+            if experiment_params["partial_replay"] and epoch == 1:
                 u_inp = copy.deepcopy(replay_network.get_val("u", "visible"))
                 u_tar = dataloader(t)[:first]
                 u_inp[:first] = u_tar
-                replay_network(u_inp=u_inp, learn=experiment_params.replay_learning)
+                replay_network(u_inp=u_inp, learn=experiment_params["replay_learning"])
             else:
-                replay_network(u_inp=None, learn=experiment_params.replay_learning)
+                replay_network(u_inp=None, learn=experiment_params["replay_learning"])
 
             replay_tracker.track(replay_network, t)
 
@@ -363,6 +371,7 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
 
 if __name__ == "__main__":
+    import tomllib as toml
     from pathlib import Path
 
     from elise.config import FullConfig
@@ -373,6 +382,10 @@ if __name__ == "__main__":
     config_path = path / "config.toml"
     full_config = FullConfig(config_path)
 
+    # load experiment parameters from experiment.toml
+    with open(path / "experiment.toml", "rb") as f:
+        experiment_config = toml.load(f)
+
     #    with open("run_id.txt", "r") as f:
     #        run_id = f.read().strip()
 
@@ -380,12 +393,13 @@ if __name__ == "__main__":
         project="elise-neurotma/Elise-tests",
         #        custom_run_id=run_id,
         name=path.name,
-        tags=full_config.experiment_params.patterns,
+        tags=experiment_config["patterns"],
     )
 
-    rng = np.random.default_rng(full_config.experiment_params.seed)
+    rng = np.random.default_rng(experiment_config["seed"])
 
     main(
+        experiment_config,
         full_config,
         run_path=path,
         artifact_path=artifact_path,
