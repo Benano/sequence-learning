@@ -1,3 +1,5 @@
+[experiment_params] # Experiment params are merged in here
+
 [network_params]
 num_lat = 50
 num_vis = 30
@@ -54,6 +56,7 @@ lam = 0.7
 
 [tracking_params]
 sim_step = 4
+track_training = true
 
 vars_train = [
   ["u", "visible" ],

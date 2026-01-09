@@ -15,14 +15,6 @@ def plot_connectivity_network(weight_matrix, num_vis: int = None):
     # Create directed graph from matrix (weight_matrix[post, pre] = 1 means pre -> post)
     G = nx.from_numpy_array(weight_matrix, create_using=nx.DiGraph())
 
-    # Separate visible/lateral neurons for positioning (optional)
-    if num_vis:
-        pos = nx.spring_layout(G)
-        # Or position visible neurons on left, lateral on right:
-        # pos = {i: (0, i/num_vis) for i in range(num_vis)}
-        # pos.update({i: (1, (i-num_vis)/ (weight_matrix.shape[0]-num_vis))
-        #             for i in range(num_vis, len(G))})
-
     # Plot with labels, colors, and arrows
     fig, ax = plt.subplots(figsize=(12, 8))
     nx.draw(
@@ -506,7 +498,10 @@ def plot_errors(train_error, replay_error):
 
 
 def main(full_config, run_path, artifact_path, figure_path, neptune_run):
-    from elise.config import FullConfig
+    import tomllib as toml
+    from pathlib import Path
+
+    from utils import deep_merge, dict_to_namespace
 
     train = load_pkl(artifact_path / "train_dict.pkl")
     val = load_pkl(artifact_path / "validation_dict.pkl")
@@ -514,7 +509,19 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     epoch = load_pkl(artifact_path / "epoch_dict.pkl")
     network = load_pkl(artifact_path / "network.pkl")
 
-    full_config = FullConfig(run_path / "config.toml")
+    path = Path(__file__).parent.resolve()
+
+    # 1. Load the merged config (this is the one created by the Runner script)
+    with open(path / "config.toml", "rb") as f:
+        config_dict = toml.load(f)
+
+    with open(path / "experiment.toml", "rb") as f:
+        experiment_config = toml.load(f)
+
+    full_config = deep_merge(config_dict, experiment_config)
+
+    full_config = dict_to_namespace(config_dict)
+
     sim_params = full_config.simulation_params
     pattern_params = full_config.pattern_params
     track_params = full_config.tracking_params
@@ -530,6 +537,7 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     last_train = int(pattern_duration / dt / sim_step)
     first_replay = 1 * int(pattern_duration / dt / sim_step)
 
+    breakpoint()
     train_output = train["u_visible"][-last_train:].T
     replay_output = replay["u_visible"][: first_replay * 5].T
     train_target = train["u_inp_visible"][-last_train:].T
