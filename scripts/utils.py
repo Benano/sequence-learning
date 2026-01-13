@@ -38,10 +38,8 @@ def load_pattern_flexible(pattern_file, pattern_duration, pattern_dt=None):
         # Try one-hot
         pat = load_one_hot_pattern(pattern_file)
 
-        if len(pat) > pattern_duration:
-            pat = pat[: int(pattern_duration), :]
+        # Remove 0s
         pat = pat[:, pat.any(axis=0)]
-
         pattern = Pattern(
             pattern=pat,
             dt=pattern_dt,
