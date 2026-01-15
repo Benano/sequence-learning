@@ -1,5 +1,4 @@
 [experiment_params]
-neptune_project = "Rework"
 seed = 2
 patterns = ['prelude_6']
 group_tag = ['Prelude6']
