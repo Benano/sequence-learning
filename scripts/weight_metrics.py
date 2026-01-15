@@ -10,7 +10,7 @@ def analyze_connectivity_metrics(
     Compute various metrics of the connectivity matrix.
 
     :param weight_matrix: 2D numpy array, shape (num_total, num_total),
-                          where weight_matrix[post, pre] = 1 means a connection pre->post.
+                          where weight_matrix[post, pre] = 1 means pre->post.
     :param num_vis: Number of visible neurons, to separate visible and lateral neurons.
     :return: Dictionary with computed metrics.
     """
@@ -40,10 +40,16 @@ def analyze_connectivity_metrics(
     sparsity = 1 - (total_connections / (num_total * num_total))
 
     # Largest singular value
-    largest_singular_value = np.linalg.svd(weight_matrix, compute_uv=False)[0]
+    try:
+        largest_singular_value = np.linalg.svd(weight_matrix, compute_uv=False)[0]
+    except np.linalg.LinAlgError:
+        largest_singular_value = 0.0
 
     # Spectral radius (max absolute eigenvalue)
-    spectral_radius = np.max(np.abs(np.linalg.eigvals(weight_matrix)))
+    try:
+        spectral_radius = np.max(np.abs(np.linalg.eigvals(weight_matrix)))
+    except np.linalg.LinAlgError:
+        spectral_radius = 0.0
 
     # Build directed graph with NetworkX
     G = nx.from_numpy_array(weight_matrix, create_using=nx.DiGraph)
@@ -56,7 +62,7 @@ def analyze_connectivity_metrics(
         w_cycles = list(nx.simple_cycles(G))
         num_cycles = len(w_cycles)
     else:
-        num_cycles = None
+        num_cycles = 999
 
     metrics = {
         "total_connections": total_connections,
