@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 
 import hashlib
+import os
 from datetime import datetime
 from pathlib import Path
 
 import neptune
 from neptune.utils import stringify_unsupported
+
+os.environ["NEPTUNE_RETRIES_TIMEOUT_MIN"] = "0"  # Optional: stop long retry hangs
+os.environ["NEPTUNE_LOG_LEVEL"] = "error"  # Only show errors
 
 
 def hash_file(filepath):
@@ -59,7 +63,7 @@ def main(parameter_tag, saving, debug):
     import tomllib as toml
     from pathlib import Path
 
-    from utils import deep_merge, dict_to_namespace
+    from utils import dict_to_namespace
 
     path = Path(__file__).parent.resolve()
 
@@ -67,21 +71,9 @@ def main(parameter_tag, saving, debug):
     with open(path / "config.toml", "rb") as f:
         config_dict = toml.load(f)
 
-    with open(path / "experiment.toml", "rb") as f:
-        experiment_config = toml.load(f)
-
-    full_config = deep_merge(config_dict, experiment_config)
-
     full_config = dict_to_namespace(config_dict)
 
     exp_config = full_config.experiment_params
-
-    neptune_run = neptune.init_run(
-        project="elise-neurotma/Elise-tests",
-        #        custom_run_id=run_id,
-        name=path.name,
-        tags=exp_config.patterns,
-    )
 
     rng = np.random.default_rng(exp_config.seed)
 
@@ -111,7 +103,7 @@ def main(parameter_tag, saving, debug):
         )
         tags.append("debug")
         neptune_run = neptune.init_run(
-            project="elise-neurotma/Elise-tests",
+            project="elise-neurotma/ELise-tests",
             # custom_run_id=run_path.name[-16:],
             name=run_path.name,
             tags=tags,
@@ -123,7 +115,8 @@ def main(parameter_tag, saving, debug):
             name=run_path.name,
             tags=tags,
         )
-        neptune_run["sys/group_tags"].add(exp_config.group_tag)
+
+    neptune_run["sys/group_tags"].add(exp_config.group_tag)
 
     run_id = neptune_run["sys/id"].fetch()
     print(f"Run ID: {run_id}")  # Print the run ID for reference
@@ -155,8 +148,6 @@ def main(parameter_tag, saving, debug):
         epoch_tracker,
     ) = train_main(
         full_config,
-        run_path,
-        artifact_path,
         pattern_path,
         neptune_run,
         rng,
