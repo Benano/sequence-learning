@@ -8,5 +8,8 @@ partial_replay = false
 replay_learning = true
 disruption = 0.0
 
+[network_params]
+num_lat = 100
+
 [pattern_params]
 pattern_duration = 400.0

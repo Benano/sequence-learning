@@ -2,7 +2,7 @@
 neptune_project = "Rework"
 
 [network_params]
-num_lat = 50
+num_lat = 70
 num_vis = 30
 
 [weight_params]
@@ -31,7 +31,7 @@ validation_cycles = 2
 replay_cycles = 2
 eta_out = 10e-4
 eta_lat = 10e-3
-eta_decay = 0.999999
+eta_decay = 0.99
 
 [pattern_params]
 pattern_duration = 250.0
