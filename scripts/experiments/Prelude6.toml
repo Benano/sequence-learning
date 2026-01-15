@@ -7,3 +7,6 @@ online_transforms =  []
 partial_replay = false
 replay_learning = true
 disruption = 0.0
+
+[pattern_params]
+pattern_duration = 400.0
