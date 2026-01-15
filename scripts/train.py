@@ -34,8 +34,6 @@ from elise.weights import DendriticWeights, RandomSomaticWeights, SomaticWeights
 
 def main(
     full_config,
-    run_path,
-    artifact_path,
     pattern_path,
     neptune_run,
     rng,
@@ -138,15 +136,17 @@ def main(
     import matplotlib.pyplot as plt
 
     # Create imshow of pattern
-    target_pattern = dataloader.get_full_pattern(simulation_params.dt)
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.imshow(target_pattern.T, aspect="auto", cmap="gray", interpolation="none")
+    ax.imshow(pattern[:].T, aspect="auto", cmap="gray", interpolation="none")
     ax.set_title("Input Pattern")
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
 
     if neptune_run:
         neptune_run["pattern"].upload(fig)
+
+    # close fig
+    fig.clf()
 
     # Spawn 4 independent child SeedSequences
     child_seeds = rng.bit_generator._seed_seq.spawn(4)
@@ -191,6 +191,8 @@ def main(
     weight_type = somatic_weight_types[weight_params.weight_type]
     somatic_weights = weight_type(weight_params, rng_w=w_som_rng, rng_d=d_som_rng)
     network_params.num_vis = dataloader.width
+    # if network_params.load_in:
+    #     network = Network.load("network.pkl")
     network = Network(
         network_params, neuron_params, dendritic_weights, somatic_weights, rate_buffer
     )
@@ -302,25 +304,33 @@ def main(
     if isinstance(dataloader, MultiPatternDataloader):
         first = dataloader.widths[0]
     else:
-        first = 10
+        first = 5
 
     if experiment_params.partial_replay:
         network.reset_activity()
 
     # Create dictionary to store losses that uses list as value
     losses = defaultdict(list)
-
     replay_network = copy.deepcopy(network)
     disruption = experiment_params.disruption
 
     for epoch in tqdm(range(simulation_params.replay_epochs)):
         for t in np.arange(0, replay_duration, simulation_params.dt):
-            if disruption != 0 and epoch == 0 and t > dataloader.duration:
+            if (
+                disruption != 0
+                and epoch == 0
+                and t > dataloader.duration
+                and t < 2 * dataloader.duration
+            ):
                 replay_network.set_visible_activity(disruption)
             else:
                 pass
 
-            if experiment_params.partial_replay and epoch == 1:
+            if (
+                experiment_params.partial_replay
+                and epoch == 1
+                and t < dataloader.duration / 4
+            ):
                 u_inp = copy.deepcopy(replay_network.get_val("u", "visible"))
                 u_tar = dataloader(t)[:first]
                 u_inp[:first] = u_tar
@@ -401,8 +411,6 @@ if __name__ == "__main__":
     main(
         full_config,  # Now you can use full_config.neuron_params.E_l again!
         run_path=path,
-        artifact_path=path / "artifacts",
-        pattern_path=path / "patterns",
         neptune_run=neptune_run,
         rng=rng,
     )
