@@ -501,7 +501,7 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     import tomllib as toml
     from pathlib import Path
 
-    from utils import deep_merge, dict_to_namespace
+    from utils import dict_to_namespace
 
     train = load_pkl(artifact_path / "train_dict.pkl")
     val = load_pkl(artifact_path / "validation_dict.pkl")
@@ -514,12 +514,6 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     # 1. Load the merged config (this is the one created by the Runner script)
     with open(path / "config.toml", "rb") as f:
         config_dict = toml.load(f)
-
-    with open(path / "experiment.toml", "rb") as f:
-        experiment_config = toml.load(f)
-
-    full_config = deep_merge(config_dict, experiment_config)
-
     full_config = dict_to_namespace(config_dict)
 
     sim_params = full_config.simulation_params
@@ -537,7 +531,6 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     last_train = int(pattern_duration / dt / sim_step)
     first_replay = 1 * int(pattern_duration / dt / sim_step)
 
-    breakpoint()
     train_output = train["u_visible"][-last_train:].T
     replay_output = replay["u_visible"][: first_replay * 5].T
     train_target = train["u_inp_visible"][-last_train:].T
@@ -588,17 +581,21 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
 
 
 if __name__ == "__main__":
+    import tomllib as toml
     from pathlib import Path
 
     import neptune
+    from utils import dict_to_namespace
 
-    from elise.config import FullConfig
+    with open("config.toml", "rb") as f:
+        config_dict = toml.load(f)
+
+    full_config = dict_to_namespace(config_dict)
 
     path = Path(__file__).parent.resolve()
     artifact_path = path / "artifacts"
     figure_path = path / "figures"
     config_path = path / "config.toml"
-    full_config = FullConfig(config_path)
 
     with open("run_id.txt", "r") as f:
         run_id = f.read().strip()
