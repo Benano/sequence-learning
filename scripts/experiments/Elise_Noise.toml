@@ -1,0 +1,15 @@
+[experiment_params]
+neptune_project = "Rework"
+seed = 2
+patterns = ['fuer_elise_ye']
+group_tag = ['Elise_noise']
+pre_transforms =  ['to_biounits'] # ORDER MATTERS GREATLY
+online_transforms =  ['noise_corr'] 
+partial_replay = false
+replay_learning = true
+disruption = 0.0
+
+[pattern_params]
+noise_sigma = 8.0
+noise_tau = 100.0
+

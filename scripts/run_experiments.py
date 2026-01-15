@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 import shutil
 import subprocess
-import tomllib
 from pathlib import Path
 
+import tomli as tomllib
 import tomli_w
 
 

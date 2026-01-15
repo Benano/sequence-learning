@@ -1,0 +1,10 @@
+[experiment_params]
+neptune_project = "Rework"
+seed = 2
+patterns = ['prelude_1']
+group_tag = ['Prelude1']
+pre_transforms =  ['to_biounits'] # ORDER MATTERS GREATLY
+online_transforms =  [] 
+partial_replay = false
+replay_learning = true
+disruption = 0.0
