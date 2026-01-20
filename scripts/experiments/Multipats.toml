@@ -1,0 +1,9 @@
+[experiment_params]
+seed = 2
+patterns = ['prelude_4', 'prelude_5']
+group_tag = ['Multipat_p4_p5']
+pre_transforms =  ['to_biounits'] # ORDER MATTERS GREATLY
+online_transforms =  [] 
+partial_replay = false
+replay_learning = true
+disruption = 0.0

@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 
 import hashlib
-import tomllib as toml
+import os
 from datetime import datetime
 from pathlib import Path
 
 import neptune
 from neptune.utils import stringify_unsupported
+
+os.environ["NEPTUNE_RETRIES_TIMEOUT_MIN"] = "0"  # Optional: stop long retry hangs
+os.environ["NEPTUNE_LOG_LEVEL"] = "error"  # Only show errors
 
 
 def hash_file(filepath):
@@ -57,17 +60,28 @@ def make_debug_sim_params(simulation_params):
 
 
 def main(parameter_tag, saving, debug):
-    from elise.config import FullConfig
+    import tomllib as toml
+    from pathlib import Path
 
-    print(saving)
+    from utils import dict_to_namespace
+
+    path = Path(__file__).parent.resolve()
+
+    # 1. Load the merged config (this is the one created by the Runner script)
+    with open(path / "config.toml", "rb") as f:
+        config_dict = toml.load(f)
+
+    full_config = dict_to_namespace(config_dict)
+
+    exp_config = full_config.experiment_params
+
+    rng = np.random.default_rng(exp_config.seed)
 
     config_path = Path("config.toml").resolve()
-    full_config = FullConfig(config_path)
-    experiment_params = full_config.experiment_params
-    pattern_name = "_".join(experiment_params.patterns)
+    pattern_name = "_".join(exp_config.patterns)
 
     # Set the seed in the config
-    rng = np.random.default_rng(experiment_params.seed)
+    rng = np.random.default_rng(exp_config.seed)
     run_path = Path.cwd()
 
     # Create directories for artifacts, figures, and patterns
@@ -81,7 +95,7 @@ def main(parameter_tag, saving, debug):
     if parameter_tag:
         tags.append(parameter_tag)
 
-    project_name = experiment_params.neptune_project
+    project_name = exp_config.neptune_project
 
     if debug:
         full_config.simulation_params = make_debug_sim_params(
@@ -89,7 +103,7 @@ def main(parameter_tag, saving, debug):
         )
         tags.append("debug")
         neptune_run = neptune.init_run(
-            project="elise-neurotma/Elise-tests",
+            project="elise-neurotma/ELise-tests",
             # custom_run_id=run_path.name[-16:],
             name=run_path.name,
             tags=tags,
@@ -101,7 +115,8 @@ def main(parameter_tag, saving, debug):
             name=run_path.name,
             tags=tags,
         )
-        neptune_run["sys/group_tags"].add(experiment_params.group_tag)
+
+    neptune_run["sys/group_tags"].add(exp_config.group_tag)
 
     run_id = neptune_run["sys/id"].fetch()
     print(f"Run ID: {run_id}")  # Print the run ID for reference
@@ -131,7 +146,12 @@ def main(parameter_tag, saving, debug):
         validation_tracker,
         replay_tracker,
         epoch_tracker,
-    ) = train_main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng)
+    ) = train_main(
+        full_config,
+        pattern_path,
+        neptune_run,
+        rng,
+    )
 
     network.save(artifact_path / "network.pkl")
     dataloader.save(artifact_path / "dataloader.pkl")

@@ -32,7 +32,12 @@ from elise.tracker import Tracker
 from elise.weights import DendriticWeights, RandomSomaticWeights, SomaticWeights
 
 
-def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
+def main(
+    full_config,
+    pattern_path,
+    neptune_run,
+    rng,
+):
     experiment_params = full_config.experiment_params
     neuron_params = full_config.neuron_params
     network_params = full_config.network_params
@@ -98,23 +103,22 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
         "nothing": AddNothing(50),
     }
 
+    online_transform_dict = {
+        "noise_corr": CorrelatedNoise(
+            pattern_params.noise_sigma,
+            pattern_params.noise_tau,
+            simulation_params.dt,
+        ),
+        "noise_white": WhiteNoise(pattern_params.noise_sigma),
+    }
+
     pre_transforms = []
     for transform in experiment_params.pre_transforms:
         pre_transforms.append(pre_transform_dict[transform])
 
     online_transforms = []
-    if pattern_params.noise_sigma > 0:
-        if pattern_params.noise_tau > 0:
-            online_transforms.append(
-                CorrelatedNoise(
-                    pattern_params.noise_sigma,
-                    pattern_params.noise_tau,
-                    simulation_params.dt,
-                )
-            )
-
-        else:
-            online_transforms.append(WhiteNoise(pattern_params.noise_sigma))
+    for transform in experiment_params.online_transforms:
+        online_transforms.append(online_transform_dict[transform])
 
     if len(patterns) > 1:
         dataloader = MultiPatternDataloader(
@@ -132,15 +136,17 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     import matplotlib.pyplot as plt
 
     # Create imshow of pattern
-    target_pattern = dataloader.get_full_pattern(simulation_params.dt)
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.imshow(target_pattern.T, aspect="auto", cmap="gray", interpolation="none")
+    ax.imshow(pattern[:].T, aspect="auto", cmap="gray", interpolation="none")
     ax.set_title("Input Pattern")
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
 
     if neptune_run:
         neptune_run["pattern"].upload(fig)
+
+    # close fig
+    fig.clf()
 
     # Spawn 4 independent child SeedSequences
     child_seeds = rng.bit_generator._seed_seq.spawn(4)
@@ -185,6 +191,8 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     weight_type = somatic_weight_types[weight_params.weight_type]
     somatic_weights = weight_type(weight_params, rng_w=w_som_rng, rng_d=d_som_rng)
     network_params.num_vis = dataloader.width
+    # if network_params.load_in:
+    #     network = Network.load("network.pkl")
     network = Network(
         network_params, neuron_params, dendritic_weights, somatic_weights, rate_buffer
     )
@@ -296,33 +304,39 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
     if isinstance(dataloader, MultiPatternDataloader):
         first = dataloader.widths[0]
     else:
-        first = 10
+        first = 5
 
-    replay_params = full_config.replay_params
-
-    if replay_params.partial_replay:
+    if experiment_params.partial_replay:
         network.reset_activity()
 
     # Create dictionary to store losses that uses list as value
     losses = defaultdict(list)
-
     replay_network = copy.deepcopy(network)
-    disruption = replay_params.disruption
+    disruption = experiment_params.disruption
 
     for epoch in tqdm(range(simulation_params.replay_epochs)):
         for t in np.arange(0, replay_duration, simulation_params.dt):
-            if disruption != 0 and epoch == 0 and t > dataloader.duration:
+            if (
+                disruption != 0
+                and epoch == 0
+                and t > dataloader.duration
+                and t < 2 * dataloader.duration
+            ):
                 replay_network.set_visible_activity(disruption)
             else:
                 pass
 
-            if replay_params.partial_replay and epoch == 1:
+            if (
+                experiment_params.partial_replay
+                and epoch == 1
+                and t < dataloader.duration / 4
+            ):
                 u_inp = copy.deepcopy(replay_network.get_val("u", "visible"))
                 u_tar = dataloader(t)[:first]
                 u_inp[:first] = u_tar
-                replay_network(u_inp=u_inp, learn=replay_params.replay_learning)
+                replay_network(u_inp=u_inp, learn=experiment_params.replay_learning)
             else:
-                replay_network(u_inp=None, learn=replay_params.replay_learning)
+                replay_network(u_inp=None, learn=experiment_params.replay_learning)
 
             replay_tracker.track(replay_network, t)
 
@@ -366,33 +380,37 @@ def main(full_config, run_path, artifact_path, pattern_path, neptune_run, rng):
 
 
 if __name__ == "__main__":
+    import tomllib as toml
     from pathlib import Path
 
-    from elise.config import FullConfig
+    from utils import deep_merge, dict_to_namespace
 
     path = Path(__file__).parent.resolve()
-    artifact_path = path / "artifacts"
-    figure_path = path / "figures"
-    config_path = path / "config.toml"
-    full_config = FullConfig(config_path)
 
-    #    with open("run_id.txt", "r") as f:
-    #        run_id = f.read().strip()
+    # 1. Load the merged config (this is the one created by the Runner script)
+    with open(path / "config.toml", "rb") as f:
+        config_dict = toml.load(f)
+
+    with open(path / "experiment.toml", "rb") as f:
+        experiment_config = toml.load(f)
+
+    full_config = deep_merge(config_dict, experiment_config)
+
+    # 2. Convert to the dot-notation object
+    full_config = dict_to_namespace(config_dict)
 
     neptune_run = neptune.init_run(
         project="elise-neurotma/Elise-tests",
         #        custom_run_id=run_id,
         name=path.name,
-        tags=full_config.experiment_params.patterns,
+        tags=full_config.patterns,
     )
 
-    rng = np.random.default_rng(full_config.experiment_params.seed)
+    rng = np.random.default_rng(full_config.seed)
 
     main(
-        full_config,
+        full_config,  # Now you can use full_config.neuron_params.E_l again!
         run_path=path,
-        artifact_path=artifact_path,
-        pattern_path=path / "patterns",
         neptune_run=neptune_run,
         rng=rng,
     )

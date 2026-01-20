@@ -1,26 +1,22 @@
 [experiment_params]
-neptune_project = "Elise-tests"
-seed = 2
-patterns = ['fuer_elise_4']
-group_tag = ['small_elise']
-pre_transforms =  ['to_biounits'] # ORDER MATTERS GREATLY
+neptune_project = "Rework"
 
 [network_params]
-num_lat = 50
+num_lat = 70
 num_vis = 30
 
 [weight_params]
-weight_type = "random" # developed, random
+weight_type = "developed" # developed, random
 p = 0.2
-q = 0.0
+q = 0.15
 p0 = 0.04
-W_vis_vis = [-1.8, 2.0]
-W_vis_lat = [-1.8, 2.0]
-W_lat_lat = [-1.8, 2.0]
-W_lat_vis = [-1.8, 2.0]
-d_den = [5, 25]
-d_som = [5, 25]
-d_int = 15
+W_vis_vis = [-0.0, 0.5]
+W_vis_lat = [-0.0, 0.5]
+W_lat_lat = [-0.0, 0.5]
+W_lat_vis = [-0.0, 0.5]
+d_den = [5, 15]
+d_som = [5, 15]
+d_int = 25
 d_den_seed = -1 # -1 seed random, else seed fixed
 d_som_seed = -1 # -1 seed random, else seed fixed
 w_den_seed = -1 # -1 seed random, else seed fixed
@@ -28,9 +24,9 @@ w_som_seed = -1 # -1 seed random, else seed fixed
 
 [simulation_params]
 dt = 0.1
-training_epochs = 50
+training_epochs = 400
 replay_epochs = 50
-training_cycles = 50
+training_cycles = 25
 validation_cycles = 2
 replay_cycles = 2
 eta_out = 10e-4
@@ -39,15 +35,11 @@ eta_decay = 0.99
 
 [pattern_params]
 pattern_duration = 250.0
-pattern_dt = 1.6
-noise_sigma = 0.0
-noise_tau = 0.0
+pattern_dt = 1.0
+noise_sigma = 8.0
+noise_tau = 100.0
 non_markov = 12
 non_markov_type = "copied"
-
-[replay_params]
-partial_replay = false
-replay_learning = true
 
 [neuron_params]
 C_v = 1.0
@@ -65,6 +57,7 @@ lam = 0.7
 
 [tracking_params]
 sim_step = 4
+track_training = true
 
 vars_train = [
   ["u", "visible" ],

@@ -6,7 +6,6 @@ import numba
 import numpy as np
 import numpy.typing as npt
 
-from .config import NetworkConfig, NeuronConfig
 from .rate_buffer import Buffer
 from .weights import DendriticWeights, SomaticWeights
 
@@ -17,8 +16,8 @@ numba.config.DISABLE_JIT = False
 class Network:
     def __init__(
         self,
-        network_params: NetworkConfig,
-        neuron_params: NeuronConfig,
+        network_params: dict,
+        neuron_params: dict,
         dendritic_weights: DendriticWeights,
         somatic_weights: SomaticWeights,
         rate_buffer: Buffer,

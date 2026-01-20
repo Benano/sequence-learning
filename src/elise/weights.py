@@ -5,8 +5,6 @@ from typing import Tuple
 import numpy as np
 import numpy.typing as npt
 
-from elise.config import WeightConfig
-
 
 class Weights(ABC):
     """
@@ -14,7 +12,7 @@ class Weights(ABC):
     """
 
     @abstractmethod
-    def __init__(self, weight_params: WeightConfig):
+    def __init__(self, weight_params: dict):
         self.weight_matrix = None
         self.delays = None
         pass
@@ -69,7 +67,7 @@ class DendriticWeights(Weights):
     :type weight_params: WeightConfig
     """
 
-    def __init__(self, weight_params: WeightConfig, rng_w, rng_d):
+    def __init__(self, weight_params: dict, rng_w, rng_d):
         """
         Initialize the DendriticWeights object.
 
@@ -130,7 +128,7 @@ class RandomSomaticWeights(Weights):
     :type weight_params: WeightConfig
     """
 
-    def __init__(self, weight_params: WeightConfig, rng_w, rng_d):
+    def __init__(self, weight_params: dict, rng_w, rng_d):
         """
         Initialize the SomaticWeights object.
 
@@ -187,7 +185,7 @@ class SomaticWeights(Weights):
     :type weight_params: WeightConfig
     """
 
-    def __init__(self, weight_params: WeightConfig, rng_w, rng_d):
+    def __init__(self, weight_params: dict, rng_w, rng_d):
         """
         Initialize the SomaticWeights object.
 

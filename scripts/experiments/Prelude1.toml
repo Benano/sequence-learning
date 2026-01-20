@@ -1,0 +1,16 @@
+[experiment_params]
+seed = 2
+patterns = ['prelude_1']
+group_tag = ['Prelude1']
+pre_transforms =  ['to_biounits'] # ORDER MATTERS GREATLY
+online_transforms =  [] 
+partial_replay = false
+replay_learning = true
+disruption = 0.0
+
+[network_params]
+num_lat = 100
+
+[pattern_params]
+pattern_duration = 400.0
+
