@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import pickle
-import tomllib as toml
 from pathlib import Path
 
 import neptune
@@ -93,67 +92,6 @@ def get_multi_run_group_tag(project_name, tag_names, artifact_names, save_loc):
         # c_run["epoch_dict"].download(destination=str(save_loc / "epoch_dict.pkl"))
 
 
-def get_neptune_losses_scan(
-    project_name, tag, param1_name, param1_values, param2_name, param2_values
-):
-    project = neptune.init_project(project=f"elise-neurotma/{project_name}")
-    runs_table = project.fetch_runs_table().to_pandas()
-    filtered_runs = runs_table[
-        runs_table["sys/group_tags"].apply(lambda tags: tag in tags)
-    ]
-
-    run_ids = filtered_runs["sys/id"].tolist()
-
-    loss_scan = np.zeros((len(param1_values), len(param2_values)))
-
-    for idx1, param1_value in enumerate(param1_values):
-        for idx2, param2_value in enumerate(param2_values):
-            # Filter runs based on the parameter values
-
-            tag_name = f"{param1_value}_{param2_value}"
-            seeded_runs = filtered_runs[
-                runs_table["sys/tags"].apply(lambda tags: tag_name in tags)
-            ]
-
-            loss = []
-            loss_idx = 10
-            for run_id in seeded_runs["sys/id"].tolist():
-                run = neptune.init_run(
-                    project=f"elise-neurotma/{project_name}",
-                    with_id=run_id,
-                    mode="read-only",
-                )
-                try:
-                    replay_loss = run["replay_loss_r"].fetch_values()["value"].tolist()
-                except KeyError:
-                    print(f"Replay loss not found for run {run_id}, skipping.")
-                    continue
-                loss.append(replay_loss[loss_idx])
-
-            loss = np.array(loss)
-            mean_loss = np.nanmean(loss)
-            loss_scan[idx1, idx2] = mean_loss
-
-    import matplotlib.pyplot as plt
-
-    plt.imshow(loss_scan, cmap="viridis", aspect="auto")
-    plt.colorbar(label="Mean Replay Loss")
-    plt.xticks(ticks=np.arange(len(param2_values)), labels=param2_values)
-    plt.yticks(ticks=np.arange(len(param1_values)), labels=param1_values)
-    plt.xlabel(param2_name)
-    plt.ylabel(param1_name)
-    plt.title(f"Mean Replay Loss for {tag}")
-    plt.tight_layout()
-    plt.show()
-
-    seeded_runs = filtered_runs[
-        runs_table["sys/tags"].apply(lambda tags: "full_save" in tags)
-    ]
-    run_save_id = full_save_run["sys/id"].tolist()[0]
-
-    return artifact_data, run_ids, run_save_id
-
-
 if __name__ == "__main__":
     # Get the losses for a scan of runs with different parameters
     # param1_name = "pattern_duration"
@@ -213,7 +151,3 @@ if __name__ == "__main__":
     #         "/Users/benano/Documents/code/sequence-learning/scripts/plots/dynamics/"
     #     ),
     # )
-
-    # # Get the losses for a specific run group tag
-    # tag_name = "reignition_short_gap"
-    # save_loc = Path(f"/Users/benano/Documents/org/manuscripts/SequenceLearningPaper/data/reignition_gap/")
