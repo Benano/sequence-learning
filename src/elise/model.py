@@ -11,6 +11,7 @@ from .weights import DendriticWeights, SomaticWeights
 
 # disable numba jit for debugging etc.
 numba.config.DISABLE_JIT = False
+np.seterr(all="raise")
 
 
 class Network:
