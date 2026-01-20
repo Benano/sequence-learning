@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
-from elise.config import FullConfig
 from elise.data import Dataloader, MultiHotPattern
 from elise.model import Network, eq_phi  # noqa
 from elise.optimizer import SimpleUpdater
@@ -25,7 +24,10 @@ from elise.weights import DendriticWeights, SomaticWeights
 
 def main(path, artifacts_path):
     # Config
-    full_config = FullConfig(path / "smoketest_config.toml")
+    # open picked config
+    with open(path / "smoketest_config.toml", "rb") as f:
+        full_config = f.read()
+
     neuron_params = full_config.neuron_params
     network_params = full_config.network_params
     simulation_params = full_config.simulation_params
