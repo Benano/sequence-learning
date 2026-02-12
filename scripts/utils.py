@@ -42,7 +42,7 @@ def load_pattern_flexible(pattern_file, pattern_duration, pattern_dt=None):
         pat = pat[:, pat.any(axis=0)]
         pattern = Pattern(
             pattern=pat,
-            dt=pattern_dt,
+            duration=pattern_duration,
         )
 
     return pattern

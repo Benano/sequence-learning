@@ -136,8 +136,13 @@ def main(
     import matplotlib.pyplot as plt
 
     # Create imshow of pattern
+
+    plot_pattern = dataloader.get_full_pattern(
+        dt=pattern_params.pattern_dt, online_transforms=False
+    )
+
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.imshow(pattern[:].T, aspect="auto", cmap="gray", interpolation="none")
+    ax.imshow(plot_pattern.T, aspect="auto", cmap="gray", interpolation="none")
     ax.set_title("Input Pattern")
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
@@ -209,6 +214,7 @@ def main(
     u_target = dataloader.get_full_pattern(dt, online_transforms=False)[
         :: track_params.sim_step
     ]
+
     r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
 
     u_target_real = dataloader.get_full_pattern(dt, num=10, online_transforms=True)[
