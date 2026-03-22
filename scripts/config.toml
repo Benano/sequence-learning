@@ -5,11 +5,12 @@ patterns = ['fuer_elise_original'] # list[str]: pattern file names (without exte
 group_tag = ['test']               # list[str]: tags for grouping/filtering runs in MLflow
 pre_transforms =  ['to_biounits']  # list[str]: transforms applied once before training — ORDER MATTERS
 online_transforms =  []            # list[str]: transforms applied each step during training (e.g. 'noise_corr', 'noise_white')
-partial_replay = false             # bool: if true, only the first quarter of the pattern is replayed in epoch 1
 replay_learning = true             # bool: if true, weights are updated during replay
 
 [noise_params]
-disruption = 0.0     # float: membrane potential (mV) that visible neurons are clamped to during the disruption window in replay (0.0 = no disruption)
+disruption = 0.0          # float: membrane potential (mV) that visible neurons are clamped to during the disruption window in replay (0.0 = no disruption)
+partial_replay = false    # bool: if true, cue the network with the first partial_replay_fraction of the pattern during replay epoch 1
+partial_replay_fraction = 0.25  # float [0, 1]: fraction of pattern duration used as cue in partial replay
 w_noise_sigma = 0.0  # float >= 0: std dev of weight noise (0.0 = no noise)
 w_noise_tau = 0      # int >= 0: time constant (steps) for weight noise correlation — Ornstein-Uhlenbeck process (0 = i.i.d. white noise)
 u_noise_sigma = 0.0  # float >= 0: std dev of membrane-potential noise (0.0 = no noise)
@@ -38,7 +39,7 @@ w_som_seed = -1           # int: seed for somatic weight sampling (-1 = random e
 
 [simulation_params]
 dt = 0.1                # float: integration time step (ms)
-training_epochs = 200   # int: number of full training epochs
+training_epochs = 10   # int: number of full training epochs
 replay_epochs = 50      # int: number of replay epochs after training
 training_cycles = 25    # int: pattern repetitions per training epoch
 validation_cycles = 2   # int: pattern repetitions per validation pass
@@ -54,6 +55,7 @@ noise_sigma = 8.0              # float >= 0: std dev of input pattern noise
 noise_tau = 100.0              # float > 0: time constant of input noise correlation (ms)
 non_markov = 12                # int >= 0: number of timesteps of non-Markovian structure in the pattern
 non_markov_type = "copied"     # str: method for building non-Markovian patterns — "none", "sampled", or "copied" (copies first-half chunk into second half)
+biounits_scale = 20.0          # float: mV range for scaling normalized pattern values to biological units
 
 [neuron_params]
 C_v = 1.0      # float > 0: membrane capacitance of visible neurons
@@ -70,8 +72,9 @@ b   = -58.0    # float: voltage threshold of the sigmoid — membrane potential 
 lam = 0.7      # float [0, 1]: dendritic-somatic coupling weight, balancing dendritic vs. somatic input contributions
 
 [tracking_params]
-sim_step = 4           # int >= 1: record state every N simulation steps (higher = less data stored)
-track_training = true  # bool: if true, record variables during training (not just validation)
+sim_step = 4                   # int >= 1: record state every N simulation steps (higher = less data stored)
+track_training = true          # bool: if true, record variables during training (not just validation)
+early_tracking_patterns = 6   # int: record training activity for the first N pattern repetitions
 
 vars_train = [
   ["u", "visible" ],

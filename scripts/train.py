@@ -1,7 +1,7 @@
-# import ast
 import copy
 from collections import defaultdict
 
+import matplotlib.pyplot as plt
 import mlflow
 import numpy as np
 from tqdm import tqdm
@@ -31,34 +31,20 @@ from elise.tracker import Tracker
 from elise.weights import DendriticWeights, RandomSomaticWeights, SomaticWeights
 
 
-def main(
-    full_config,
-    pattern_path,
-    rng,
-):
-    experiment_params = full_config.experiment_params
-    noise_params = full_config.noise_params
-    neuron_params = full_config.neuron_params
-    network_params = full_config.network_params
-    simulation_params = full_config.simulation_params
-    pattern_params = full_config.pattern_params
-    weight_params = full_config.weight_params
-    track_params = full_config.tracking_params
-
+def load_patterns(experiment_params, pattern_params, network_params, pattern_path, rng):
+    """Load or generate all training patterns specified in experiment_params."""
     patterns = []
     for pattern_name in experiment_params.patterns:
         if pattern_name == "random":
+            pattern_rng = copy.deepcopy(rng)
             if pattern_params.non_markov_type == "none":
-                pattern_rng = copy.deepcopy(rng)
                 pattern = RandomPattern(
                     width=network_params.num_vis,
                     duration=pattern_params.pattern_duration,
                     rng=pattern_rng,
                     dt=pattern_params.pattern_dt,
                 )
-                patterns.append(pattern)
             elif pattern_params.non_markov_type == "sampled":
-                pattern_rng = copy.deepcopy(rng)
                 pattern = RandomSampledNonMarkovianPattern(
                     width=network_params.num_vis,
                     duration=pattern_params.pattern_duration,
@@ -66,9 +52,7 @@ def main(
                     dt=pattern_params.pattern_dt,
                     nmk=pattern_params.non_markov,
                 )
-                patterns.append(pattern)
             elif pattern_params.non_markov_type == "copied":
-                pattern_rng = copy.deepcopy(rng)
                 pattern = RandomCopiedNonMarkovianPattern(
                     width=network_params.num_vis,
                     duration=pattern_params.pattern_duration,
@@ -76,7 +60,7 @@ def main(
                     dt=pattern_params.pattern_dt,
                     nmk=pattern_params.non_markov,
                 )
-                patterns.append(pattern)
+            patterns.append(pattern)
         else:
             pattern_file = pattern_path / f"{pattern_name}.txt"
             pattern = load_pattern_flexible(
@@ -85,16 +69,19 @@ def main(
                 pattern_params.pattern_dt,
             )
             patterns.append(pattern)
+    return patterns
+
+
+def build_dataloader(
+    patterns, experiment_params, pattern_params, simulation_params, neuron_params
+):
+    """Construct a dataloader with the configured pre- and online transforms."""
 
     def to_biounits(x):
-        return neuron_params.E_l + x * 20.0
-
-    def harder_softer(x):
-        return x * np.random.uniform(0.3, 1, x.shape)
+        return neuron_params.E_l + x * pattern_params.biounits_scale
 
     pre_transform_dict = {
         "to_biounits": to_biounits,
-        "harder_softer": harder_softer,
         "color": ColorNotes(),
         "silence": Silence(),
         "chunk_split": ChunkSplit(num_chunks=3),
@@ -111,76 +98,67 @@ def main(
         "noise_white": WhiteNoise(pattern_params.noise_sigma),
     }
 
-    pre_transforms = []
-    for transform in experiment_params.pre_transforms:
-        pre_transforms.append(pre_transform_dict[transform])
-
-    online_transforms = []
-    for transform in experiment_params.online_transforms:
-        online_transforms.append(online_transform_dict[transform])
+    pre_transforms = [pre_transform_dict[t] for t in experiment_params.pre_transforms]
+    online_transforms = [
+        online_transform_dict[t] for t in experiment_params.online_transforms
+    ]
 
     if len(patterns) > 1:
-        dataloader = MultiPatternDataloader(
+        return MultiPatternDataloader(
             patterns=patterns,
             pre_transform=pre_transforms,
             online_transform=online_transforms,
         )
     else:
-        dataloader = Dataloader(
+        return Dataloader(
             patterns[0],
             pre_transforms=pre_transforms,
             online_transforms=online_transforms,
         )
 
-    import matplotlib.pyplot as plt
 
-    # Create imshow of pattern
-
+def log_pattern_figure(dataloader, pattern_params):
+    """Log an imshow of the training pattern to MLflow."""
     plot_pattern = dataloader.get_full_pattern(
         dt=pattern_params.pattern_dt, online_transforms=False
     )
-
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.imshow(plot_pattern.T, aspect="auto", cmap="gray", interpolation="none")
     ax.set_title("Input Pattern")
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
-
     mlflow.log_figure(fig, "pattern.png")
-
-    # close fig
     fig.clf()
 
-    # Spawn 4 independent child SeedSequences
+
+def setup_network(weight_params, network_params, neuron_params, rng):
+    """Initialize dendritic and somatic weights, then build the network."""
+    # Spawn 4 independent child SeedSequences — one per weight/delay matrix
     child_seeds = rng.bit_generator._seed_seq.spawn(4)
     child_rngs = [np.random.default_rng(s) for s in child_seeds]
 
-    # If fixed seed available, override the corresponding spawned RNG
+    # Use fixed seeds if provided, otherwise use the spawned RNGs
     d_den_rng = (
         np.random.default_rng(weight_params.d_den_seed)
         if weight_params.d_den_seed != -1
         else child_rngs[0]
     )
-
     d_som_rng = (
         np.random.default_rng(weight_params.d_som_seed)
         if weight_params.d_som_seed != -1
         else child_rngs[1]
     )
-
     w_den_rng = (
         np.random.default_rng(weight_params.w_den_seed)
         if weight_params.w_den_seed != -1
         else child_rngs[2]
     )
-
     w_som_rng = (
         np.random.default_rng(weight_params.w_som_seed)
         if weight_params.w_som_seed != -1
         else child_rngs[3]
     )
 
-    # Network
     rate_buffer = Buffer
     dendritic_weights = DendriticWeights(
         weight_params, rng_w=w_den_rng, rng_d=d_den_rng
@@ -190,50 +168,46 @@ def main(
         "developed": SomaticWeights,
         "random": RandomSomaticWeights,
     }
-
     weight_type = somatic_weight_types[weight_params.weight_type]
     somatic_weights = weight_type(weight_params, rng_w=w_som_rng, rng_d=d_som_rng)
-    network_params.num_vis = dataloader.width
-    # if network_params.load_in:
-    #     network = Network.load("network.pkl")
-    network = Network(
+
+    return Network(
         network_params, neuron_params, dendritic_weights, somatic_weights, rate_buffer
     )
 
-    # Simulator
-    optimizer = SimpleUpdater
-    dt = simulation_params.dt
-    eta_lat = simulation_params.eta_lat
-    eta_vis = simulation_params.eta_out
-    optimizer_lat = optimizer(eta_lat)
-    optimizer_vis = optimizer(eta_vis)
-    network.prepare_for_simulation(dt, optimizer_vis, optimizer_lat)
 
-    u_target = dataloader.get_full_pattern(dt, online_transforms=False)[
-        :: track_params.sim_step
-    ]
+def log_per_pattern_losses(r_out, r_target, widths, prefix, epoch, losses):
+    """Compute and log per-pattern MSE losses for multi-pattern dataloaders."""
+    c_width = 0
+    for i, w in enumerate(widths):
+        loss = compute_loss(
+            r_out[:, c_width : c_width + w],
+            r_target[:, c_width : c_width + w],
+            mse,
+        )
+        c_width += w
+        mlflow.log_metric(f"{prefix}_loss_pat_{i}", loss, step=epoch)
+        losses[f"{prefix}_loss_pat_{i}"].append(loss)
 
-    r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
 
-    u_target_real = dataloader.get_full_pattern(dt, num=10, online_transforms=True)[
-        :: track_params.sim_step
-    ]
-    r_target_real = eq_phi(u_target_real, neuron_params.a, neuron_params.b)
-
-    # Sim params
-    training_duration = simulation_params.training_cycles * dataloader.duration
-    validation_duration = simulation_params.validation_cycles * dataloader.duration
-    replay_duration = simulation_params.replay_cycles * dataloader.duration
-
-    # Sim Trackers
-    train_tracker = Tracker(track_params.vars_train, track_params.sim_step)
-    validation_tracker = Tracker(track_params.vars_val, track_params.sim_step)
-    replay_tracker = Tracker(track_params.vars_replay, track_params.sim_step)
-    epoch_tracker = Tracker(track_params.vars_epoch, 1)
+def run_training(
+    network,
+    dataloader,
+    simulation_params,
+    noise_params,
+    track_params,
+    targets,
+    trackers,
+):
+    """Run the supervised training loop with periodic validation."""
+    u_target, r_target, r_target_real = targets
+    train_tracker, validation_tracker, epoch_tracker = trackers
 
     c_t = 0.0
     nr_epochs = simulation_params.training_epochs
     losses = defaultdict(list)
+    training_duration = simulation_params.training_cycles * dataloader.duration
+    validation_duration = simulation_params.validation_cycles * dataloader.duration
 
     w_noise = CorrelatedNoise(
         noise_params.w_noise_sigma, noise_params.w_noise_tau, simulation_params.dt
@@ -244,6 +218,7 @@ def main(
 
     for epoch in tqdm(range(nr_epochs)):
         epoch_tracker.track(network, c_t)
+
         for t in np.arange(0, training_duration, simulation_params.dt):
             network(
                 u_inp=dataloader(t),
@@ -254,8 +229,10 @@ def main(
 
             if track_params.track_training:
                 c_t = c_t + simulation_params.dt
-                first_patterns = 6 * dataloader.duration
-                if t < first_patterns and t > dataloader.duration:
+                first_patterns = (
+                    track_params.early_tracking_patterns * dataloader.duration
+                )
+                if dataloader.duration < t < first_patterns:
                     train_tracker.track(network, c_t)
             else:
                 if epoch > nr_epochs - 1 and t > training_duration - (
@@ -263,14 +240,13 @@ def main(
                 ):
                     train_tracker.track(network, c_t)
 
-        # Add learning rate decay
+        # Learning rate decay
         network.optimizer_vis.eta *= simulation_params.eta_decay
         network.optimizer_lat.eta *= simulation_params.eta_decay
 
-        # Validation
+        # Validation (skipped on final epoch — network state is needed for replay)
         if epoch != simulation_params.training_epochs - 1:
             for t in np.arange(0, validation_duration, simulation_params.dt):
-                v_c_t = copy.deepcopy(c_t)
                 v_c_t = c_t + simulation_params.dt
                 network(u_inp=None, learn=False)
                 validation_tracker.track(network, v_c_t)
@@ -282,21 +258,9 @@ def main(
             mse_loss_r = compute_loss(r_out, r_target, mse)
 
             if isinstance(dataloader, MultiPatternDataloader):
-                widths = dataloader.widths
-                c_width = 0
-                for i in range(len(patterns)):
-                    mse_loss_r = compute_loss(
-                        r_out[:, c_width : c_width + widths[i]],
-                        r_target[:, c_width : c_width + widths[i]],
-                        mse,
-                    )
-                    c_width += widths[i]
-                    mlflow.log_metric(
-                        f"validation_loss_pat_{i}", mse_loss_r, step=epoch
-                    )
-                    losses[f"validation_loss_pat_{i}"].append(mse_loss_r)
-            else:
-                pass
+                log_per_pattern_losses(
+                    r_out, r_target, dataloader.widths, "validation", epoch, losses
+                )
 
             mlflow.log_metric("validation_loss_r", mse_loss_r, step=epoch)
             losses["validation_loss_r"].append(mse_loss_r)
@@ -307,35 +271,45 @@ def main(
     validation_tracker.store("r_target", r_target)
     validation_tracker.store("losses", losses)
 
+
+def run_replay(
+    network,
+    dataloader,
+    simulation_params,
+    noise_params,
+    experiment_params,
+    targets,
+    replay_tracker,
+):
+    u_target, r_target, _ = targets
+    replay_duration = simulation_params.replay_cycles * dataloader.duration
+    disruption = noise_params.disruption
+
+    if noise_params.partial_replay:
+        network.reset_activity()
+
+    # Width of the first pattern's neurons, used for partial cueing
     if isinstance(dataloader, MultiPatternDataloader):
         first = dataloader.widths[0]
     else:
-        first = 5
+        first = 5  # fallback: track first 5 neurons
 
-    if experiment_params.partial_replay:
-        network.reset_activity()
-
-    # Create dictionary to store losses that uses list as value
     losses = defaultdict(list)
     replay_network = copy.deepcopy(network)
-    disruption = noise_params.disruption
 
     for epoch in tqdm(range(simulation_params.replay_epochs)):
         for t in np.arange(0, replay_duration, simulation_params.dt):
             if (
                 disruption != 0
                 and epoch == 0
-                and t > dataloader.duration
-                and t < 2 * dataloader.duration
+                and dataloader.duration < t < 2 * dataloader.duration
             ):
                 replay_network.set_visible_activity(disruption)
-            else:
-                pass
 
             if (
-                experiment_params.partial_replay
+                noise_params.partial_replay
                 and epoch == 1
-                and t < dataloader.duration / 4
+                and t < dataloader.duration * noise_params.partial_replay_fraction
             ):
                 u_inp = copy.deepcopy(replay_network.get_val("u", "visible"))
                 u_tar = dataloader(t)[:first]
@@ -355,23 +329,88 @@ def main(
         mlflow.log_metric("replay_loss_r", mse_loss_r, step=epoch)
 
         if isinstance(dataloader, MultiPatternDataloader):
-            widths = dataloader.widths
-            c_width = 0
-            for i in range(len(patterns)):
-                mse_loss_r = compute_loss(
-                    r_out[:, c_width : c_width + widths[i]],
-                    r_target[:, c_width : c_width + widths[i]],
-                    mse,
-                )
-                c_width += widths[i]
-                mlflow.log_metric(f"replay_loss_pat_{i}", mse_loss_r, step=epoch)
-                losses[f"replay_loss_pat_{i}"].append(mse_loss_r)
+            log_per_pattern_losses(
+                r_out, r_target, dataloader.widths, "replay", epoch, losses
+            )
 
         losses["replay_loss_r"].append(mse_loss_r)
         losses["replay_loss_u"].append(mse_loss_u)
 
     replay_tracker.store("losses", losses)
     replay_tracker.store("r_target", r_target)
+
+
+def main(full_config, pattern_path, rng):
+    """Run a full training and replay experiment.
+
+    Args:
+        full_config: Dot-notation config namespace (from dict_to_namespace).
+        pattern_path: Path to directory containing pattern .txt files.
+        rng: NumPy random Generator for reproducibility.
+
+    Returns:
+        Tuple of (network, dataloader, train_tracker, validation_tracker,
+                  replay_tracker, epoch_tracker).
+    """
+    experiment_params = full_config.experiment_params
+    noise_params = full_config.noise_params
+    neuron_params = full_config.neuron_params
+    network_params = full_config.network_params
+    simulation_params = full_config.simulation_params
+    pattern_params = full_config.pattern_params
+    weight_params = full_config.weight_params
+    track_params = full_config.tracking_params
+
+    patterns = load_patterns(
+        experiment_params, pattern_params, network_params, pattern_path, rng
+    )
+    dataloader = build_dataloader(
+        patterns, experiment_params, pattern_params, simulation_params, neuron_params
+    )
+    log_pattern_figure(dataloader, pattern_params)
+
+    network_params.num_vis = dataloader.width
+    network = setup_network(weight_params, network_params, neuron_params, rng)
+    network.prepare_for_simulation(
+        simulation_params.dt,
+        SimpleUpdater(simulation_params.eta_out),
+        SimpleUpdater(simulation_params.eta_lat),
+    )
+
+    dt = simulation_params.dt
+    u_target = dataloader.get_full_pattern(dt, online_transforms=False)[
+        :: track_params.sim_step
+    ]
+    r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
+    u_target_real = dataloader.get_full_pattern(dt, num=10, online_transforms=True)[
+        :: track_params.sim_step
+    ]
+    r_target_real = eq_phi(u_target_real, neuron_params.a, neuron_params.b)
+    targets = (u_target, r_target, r_target_real)
+
+    train_tracker = Tracker(track_params.vars_train, track_params.sim_step)
+    validation_tracker = Tracker(track_params.vars_val, track_params.sim_step)
+    replay_tracker = Tracker(track_params.vars_replay, track_params.sim_step)
+    epoch_tracker = Tracker(track_params.vars_epoch, 1)
+
+    run_training(
+        network,
+        dataloader,
+        simulation_params,
+        noise_params,
+        track_params,
+        targets,
+        (train_tracker, validation_tracker, epoch_tracker),
+    )
+    run_replay(
+        network,
+        dataloader,
+        simulation_params,
+        noise_params,
+        experiment_params,
+        targets,
+        replay_tracker,
+    )
 
     return (
         network,
@@ -391,7 +430,6 @@ if __name__ == "__main__":
 
     path = Path(__file__).parent.resolve()
 
-    # 1. Load the merged config (this is the one created by the Runner script)
     with open(path / "config.toml", "rb") as f:
         config_dict = toml.load(f)
 
@@ -399,9 +437,9 @@ if __name__ == "__main__":
         experiment_config = toml.load(f)
 
     full_config = deep_merge(config_dict, experiment_config)
-
-    # 2. Convert to the dot-notation object
-    full_config = dict_to_namespace(config_dict)
+    full_config = dict_to_namespace(
+        full_config
+    )  # was: dict_to_namespace(config_dict) — bug fix
 
     rng = np.random.default_rng(full_config.seed)
 

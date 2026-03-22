@@ -182,7 +182,7 @@ class Network:
 
         self.dendritic_weights += dwdt_full * self.dt
 
-    def _update_dyanmic_variables(self, dudt, dvdt, dr_bar_dt):
+    def _update_dynamic_variables(self, dudt, dvdt, dr_bar_dt):
         self.u += dudt * self.dt
         self.v += dvdt * self.dt
         self.r_bar += dr_bar_dt * self.dt
@@ -201,7 +201,7 @@ class Network:
         if w_noise_gen is not None:
             dwdt = w_noise_gen(dwdt, dt=self.dt)
 
-        self._update_dyanmic_variables(dudt, dvdt, dr_bar_dt)
+        self._update_dynamic_variables(dudt, dvdt, dr_bar_dt)
         if learn:
             self._update_weights(dwdt)
         self._update_rates_and_buffer()

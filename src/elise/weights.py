@@ -109,7 +109,7 @@ class DendriticWeights(Weights):
         weights[:num_vis, num_vis:] = self.rng_w.uniform(
             self.W_vis_lat[0], self.W_vis_lat[1], (num_vis, num_lat)
         )  # Vis to Lat
-        weights[:num_vis, :num_vis:] = self.rng_w.uniform(
+        weights[:num_vis, :num_vis] = self.rng_w.uniform(
             self.W_vis_vis[0], self.W_vis_vis[1], (num_vis, num_vis)
         )  # Vis to Vis
 
@@ -301,7 +301,9 @@ class SomaticWeights(Weights):
                             ]
 
         if np.sum(weight_matrix) != np.sum(connections_in) - num_vis:
-            print("Problem with total connections")
+            raise ValueError(
+                "weight matrix sum does not match expected connection count."
+            )
 
         return weight_matrix
 

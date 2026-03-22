@@ -42,11 +42,11 @@ class ColorNotes:
 
 class AddNothing:
     def __init__(self, nothing=1):
-        self.noithing = nothing
+        self.nothing = nothing
 
     def __call__(self, x):
         len_x = x.shape[0]
-        nothing = np.zeros((len_x, self.noithing))
+        nothing = np.zeros((len_x, self.nothing))
         x = np.hstack((x, nothing))
 
         return x
