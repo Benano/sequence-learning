@@ -2,7 +2,6 @@
 
 # /usr/bin/env python3
 
-
 import pickle
 from abc import ABC, abstractmethod
 from typing import Any, Callable, List, Optional, Tuple, Union
