@@ -192,8 +192,15 @@ class Network:
         self.r = new_r
         self.rate_buffer.roll(new_r)
 
-    def __call__(self, u_inp, learn: bool = True):
+    def __call__(self, u_inp, learn: bool = True, u_noise_gen=None, w_noise_gen=None):
         dudt, dvdt, dwdt, dr_bar_dt = self._compute_update(u_inp)
+
+        if u_noise_gen is not None:
+            dudt = u_noise_gen(dudt, dt=self.dt)
+
+        if w_noise_gen is not None:
+            dwdt = w_noise_gen(dwdt, dt=self.dt)
+
         self._update_dyanmic_variables(dudt, dvdt, dr_bar_dt)
         if learn:
             self._update_weights(dwdt)
