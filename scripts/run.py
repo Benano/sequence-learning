@@ -1,15 +1,10 @@
 #!/usr/bin/env python3
 
 import hashlib
-import os
 from datetime import datetime
 from pathlib import Path
 
-import neptune
-from neptune.utils import stringify_unsupported
-
-os.environ["NEPTUNE_RETRIES_TIMEOUT_MIN"] = "0"  # Optional: stop long retry hangs
-os.environ["NEPTUNE_LOG_LEVEL"] = "error"  # Only show errors
+import mlflow
 
 
 def hash_file(filepath):
@@ -43,17 +38,8 @@ def create_run_folder(config_path, pattern_name, seed, runs_dir="runs"):
     return run_path
 
 
-def track_config(config, neptune_run):
-    """Track the configuration in Neptune."""
-    for section, params in config.items():
-        for key, value in params.items():
-            neptune_run[f"config/{section}/{key}"] = value
-
-
 def make_debug_sim_params(simulation_params):
-    simulation_params.training_cycles = 2
     simulation_params.training_epochs = 2
-    simulation_params.replay_cycles = 2
     simulation_params.replay_epochs = 5
 
     return simulation_params
@@ -63,6 +49,7 @@ def main(parameter_tag, saving, debug):
     import tomllib as toml
     from pathlib import Path
 
+    import tomli_w as toml_w
     from utils import dict_to_namespace
 
     path = Path(__file__).parent.resolve()
@@ -95,46 +82,39 @@ def main(parameter_tag, saving, debug):
     if parameter_tag:
         tags.append(parameter_tag)
 
-    project_name = exp_config.neptune_project
-
+    experiment_name = exp_config.mlflow_experiment
     if debug:
+        experiment_name = "ELise-tests"
+        tags.append("debug")
+
+    if full_config.simulation_params and debug:
         full_config.simulation_params = make_debug_sim_params(
             full_config.simulation_params
         )
-        tags.append("debug")
-        neptune_run = neptune.init_run(
-            project="elise-neurotma/ELise-tests",
-            # custom_run_id=run_path.name[-16:],
-            name=run_path.name,
-            tags=tags,
-        )
-    else:
-        neptune_run = neptune.init_run(
-            project=f"elise-neurotma/{project_name}",
-            # custom_run_id=run_path.name[-16:],
-            name=run_path.name,
-            tags=tags,
-        )
 
-    neptune_run["sys/group_tags"].add(exp_config.group_tag)
+    mlflow.set_experiment(experiment_name)
+    mlflow.start_run(
+        run_name=run_path.name,
+        tags={t: "true" for t in tags},
+    )
+    mlflow.set_tag("group_tag", str(exp_config.group_tag))
 
-    run_id = neptune_run["sys/id"].fetch()
-    print(f"Run ID: {run_id}")  # Print the run ID for reference
+    run_id = mlflow.active_run().info.run_id
+    print(f"Run ID: {run_id}")
     # Save run ID to a file
     with open(run_path / "run_id.txt", "w") as f:
         f.write(run_id)
 
-    # Save config file to Neptune
-    neptune_run["parameters/config"].upload("config.toml")
-
+    # Log config file and individual parameters to MLflow
+    mlflow.log_artifact(str(config_path), artifact_path="parameters")
     with open(config_path, "rb") as f:
         raw_config = toml.load(f)
-    if neptune_run:
-        raw_config = stringify_unsupported(raw_config)
-        # Log each parameter
-        for section, params in raw_config.items():
+    flat_params = {}
+    for section, params in raw_config.items():
+        if isinstance(params, dict):
             for key, value in params.items():
-                neptune_run[f"parameters/{section}/{key}"] = value
+                flat_params[f"{section}.{key}"] = str(value)
+    mlflow.log_params(flat_params)
 
     # Import your main function (assuming it's in the same directory as run.py)
     from train import main as train_main
@@ -149,7 +129,6 @@ def main(parameter_tag, saving, debug):
     ) = train_main(
         full_config,
         pattern_path,
-        neptune_run,
         rng,
     )
 
@@ -159,24 +138,30 @@ def main(parameter_tag, saving, debug):
     train_tracker.save_dict(artifact_path / "train_dict.pkl")
     replay_tracker.save_dict(artifact_path / "replay_dict.pkl")
     epoch_tracker.save_dict(artifact_path / "epoch_dict.pkl")
-    neptune_run["network"].upload(str(artifact_path / "network.pkl"))
+    mlflow.log_artifact(str(artifact_path / "network.pkl"))
+
+    # copy the config file to the artifact path
+    artifact_config_path = artifact_path / "config.toml"
+    with open(artifact_config_path, "wb") as f:
+        toml_w.dump(config_dict, f)
 
     if saving:
-        neptune_run["network"].upload(str(artifact_path / "network.pkl"))
-        neptune_run["dataloader"].upload(str(artifact_path / "dataloader.pkl"))
-        neptune_run["replay_dict"].upload(str(artifact_path / "replay_dict.pkl"))
-        neptune_run["train_dict"].upload(str(artifact_path / "train_dict.pkl"))
-        neptune_run["epoch_dict"].upload(str(artifact_path / "epoch_dict.pkl"))
-        neptune_run["validation_dict"].upload(
-            str(artifact_path / "validation_dict.pkl")
-        )
-        neptune_run["sys/tags"].add("full_save")
+        for fname in [
+            "network.pkl",
+            "dataloader.pkl",
+            "replay_dict.pkl",
+            "train_dict.pkl",
+            "epoch_dict.pkl",
+            "validation_dict.pkl",
+        ]:
+            mlflow.log_artifact(str(artifact_path / fname))
+        mlflow.set_tag("full_save", "true")
 
     from plotting import main as plotting_main
 
-    plotting_main(full_config, run_path, artifact_path, figure_path, neptune_run)
+    plotting_main(full_config, run_path, artifact_path, figure_path)
 
-    neptune_run.stop()
+    mlflow.end_run()
 
 
 if __name__ == "__main__":
@@ -189,15 +174,13 @@ if __name__ == "__main__":
         description="Run ELiSe experiment with a specified random seed."
     )
     parser.add_argument(
-        "--param_tag", type=str, default="", help="Parameter tag for neptune"
+        "--param_tag", type=str, default="", help="Parameter tag for mlflow"
     )
     parser.add_argument(
-        "--saving", action="store_true", help="Flag for savingd artifacts"
+        "--saving", action="store_true", help="Flag for saving artifacts"
     )
 
-    parser.add_argument(
-        "--debug", action="store_true", help="Flag for debug mode (no neptune logging)"
-    )
+    parser.add_argument("--debug", action="store_true", help="Flag for debug mode")
     args = parser.parse_args()
 
     main(args.param_tag, args.saving, args.debug)

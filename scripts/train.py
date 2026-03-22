@@ -2,7 +2,7 @@
 import copy
 from collections import defaultdict
 
-import neptune
+import mlflow
 import numpy as np
 from tqdm import tqdm
 from utils import load_pattern_flexible
@@ -35,7 +35,6 @@ from elise.weights import DendriticWeights, RandomSomaticWeights, SomaticWeights
 def main(
     full_config,
     pattern_path,
-    neptune_run,
     rng,
 ):
     experiment_params = full_config.experiment_params
@@ -147,8 +146,7 @@ def main(
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
 
-    if neptune_run:
-        neptune_run["pattern"].upload(fig)
+    mlflow.log_figure(fig, "pattern.png")
 
     # close fig
     fig.clf()
@@ -237,14 +235,30 @@ def main(
     nr_epochs = simulation_params.training_epochs
     losses = defaultdict(list)
 
+    w_noise = CorrelatedNoise(
+        experiment_params.w_noise_sigma,
+        experiment_params.w_noise_tau,
+        simulation_params.dt,
+    )
+    u_noise = CorrelatedNoise(
+        experiment_params.u_noise_sigma,
+        experiment_params.u_noise_tau,
+        simulation_params.dt,
+    )
+
     for epoch in tqdm(range(nr_epochs)):
         epoch_tracker.track(network, c_t)
         for t in np.arange(0, training_duration, simulation_params.dt):
-            network(u_inp=dataloader(t))
+            network(
+                u_inp=dataloader(t),
+                w_noise_gen=w_noise,
+                u_noise_gen=u_noise,
+                learn=True,
+            )
 
             if track_params.track_training:
                 c_t = c_t + simulation_params.dt
-                first_patterns = 5 * dataloader.duration
+                first_patterns = 6 * dataloader.duration
                 if t < first_patterns and t > dataloader.duration:
                     train_tracker.track(network, c_t)
             else:
@@ -281,15 +295,14 @@ def main(
                         mse,
                     )
                     c_width += widths[i]
-                    if neptune_run:
-                        neptune_run[f"validation_loss_pat_{i}"].append(mse_loss_r)
-                        losses[f"validation_loss_pat_{i}"].append(mse_loss_r)
+                    mlflow.log_metric(
+                        f"validation_loss_pat_{i}", mse_loss_r, step=epoch
+                    )
+                    losses[f"validation_loss_pat_{i}"].append(mse_loss_r)
             else:
                 pass
 
-            if neptune_run:
-                neptune_run["validation_loss_r"].append(mse_loss_r)
-
+            mlflow.log_metric("validation_loss_r", mse_loss_r, step=epoch)
             losses["validation_loss_r"].append(mse_loss_r)
             losses["validation_loss_u"].append(mse_loss_u)
 
@@ -304,8 +317,10 @@ def main(
     den_w_metrics = analyze_connectivity_metrics(
         dendritic_weights.weight_matrix, network.num_vis, cycles=False
     )
-    neptune_run["weight_metrics/dendric"] = den_w_metrics
-    neptune_run["weight_metrics/somatic"] = som_w_metrics
+    for k, v in den_w_metrics.items():
+        mlflow.log_metric(f"weight_metrics.dendritic.{k}", float(v))
+    for k, v in som_w_metrics.items():
+        mlflow.log_metric(f"weight_metrics.somatic.{k}", float(v))
 
     if isinstance(dataloader, MultiPatternDataloader):
         first = dataloader.widths[0]
@@ -352,8 +367,7 @@ def main(
         mse_loss_u = compute_loss(u_out, u_target, mse)
         mse_loss_r = compute_loss(r_out, r_target, mse)
 
-        if neptune_run:
-            neptune_run["replay_loss_r"].append(mse_loss_r)
+        mlflow.log_metric("replay_loss_r", mse_loss_r, step=epoch)
 
         if isinstance(dataloader, MultiPatternDataloader):
             widths = dataloader.widths
@@ -365,9 +379,8 @@ def main(
                     mse,
                 )
                 c_width += widths[i]
-                if neptune_run:
-                    neptune_run[f"replay_loss_pat_{i}"].append(mse_loss_r)
-                    losses[f"replay_loss_pat_{i}"].append(mse_loss_r)
+                mlflow.log_metric(f"replay_loss_pat_{i}", mse_loss_r, step=epoch)
+                losses[f"replay_loss_pat_{i}"].append(mse_loss_r)
 
         losses["replay_loss_r"].append(mse_loss_r)
         losses["replay_loss_u"].append(mse_loss_u)
@@ -405,18 +418,10 @@ if __name__ == "__main__":
     # 2. Convert to the dot-notation object
     full_config = dict_to_namespace(config_dict)
 
-    neptune_run = neptune.init_run(
-        project="elise-neurotma/Elise-tests",
-        #        custom_run_id=run_id,
-        name=path.name,
-        tags=full_config.patterns,
-    )
-
     rng = np.random.default_rng(full_config.seed)
 
     main(
-        full_config,  # Now you can use full_config.neuron_params.E_l again!
-        run_path=path,
-        neptune_run=neptune_run,
+        full_config,
+        pattern_path=path / "patterns",
         rng=rng,
     )

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import matplotlib.pyplot as plt
+import mlflow
 import networkx as nx
 import numpy as np
 from matplotlib import animation
@@ -7,6 +8,8 @@ from matplotlib.animation import PillowWriter
 from matplotlib.collections import LineCollection
 from matplotlib.offsetbox import AnchoredText
 from weight_metrics import analyze_connectivity_metrics
+
+from elise.model import Network, eq_phi  # noqa
 
 
 def plot_connectivity_network(weight_matrix, num_vis: int = None):
@@ -392,10 +395,9 @@ def plot_principal_components(u_latent, target):
     return fig
 
 
-def save_fig(fig, name, path, neptune_run, dpi=300):
+def save_fig(fig, name, path, dpi=300):
     fig.savefig(path / name, dpi=dpi)
-    if neptune_run:
-        neptune_run[f"figures/{name}"].upload(fig)
+    mlflow.log_figure(fig, f"figures/{name}")
     plt.close(fig)
     print(f"Saved figure {name} to {path}")
 
@@ -497,7 +499,7 @@ def plot_errors(train_error, replay_error):
     plt.show()
 
 
-def main(full_config, run_path, artifact_path, figure_path, neptune_run):
+def main(full_config, run_path, artifact_path, figure_path):
     import tomllib as toml
     from pathlib import Path
 
@@ -525,15 +527,17 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     sim_step = track_params.sim_step
 
     last_train = int(2 * pattern_duration / dt / sim_step)
-    train_output = train["u_visible"][-last_train:]
-    replay_output = replay["u_visible"][: last_train * 4]
+    train_output = train["r_visible"][-last_train:]
+    replay_output = replay["r_visible"][: last_train * 4]
 
     last_train = int(pattern_duration / dt / sim_step)
     first_replay = 1 * int(pattern_duration / dt / sim_step)
 
-    train_output = train["u_visible"][-last_train:].T
-    replay_output = replay["u_visible"][: first_replay * 5].T
-    train_target = train["u_inp_visible"][-last_train:].T
+    train_output = train["r_visible"][-last_train:].T
+    replay_output = replay["r_visible"][: first_replay * 5].T
+    train_target_u = train["u_inp_visible"][-last_train:].T
+    train_target = eq_phi(train_target_u, a=0.3, b=-58.0)
+
     dpi = 300
     start_time = (
         pattern_params.pattern_duration
@@ -543,15 +547,15 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     step = sim_params.dt * track_params.sim_step
 
     fig = plot_weights_grid(network)
-    save_fig(fig, "weights_grid.png", figure_path, neptune_run, dpi)
+    save_fig(fig, "weights_grid.png", figure_path, dpi)
 
     fig = plot_activity_target_match(
         train_output, replay_output, train_target, start_time, step
     )
-    save_fig(fig, "activity_match.png", figure_path, neptune_run, dpi)
+    save_fig(fig, "activity_match.png", figure_path, dpi)
 
     fig = plot_weights_in_time(epoch, val, full_config)
-    save_fig(fig, "weights_over_time.png", figure_path, neptune_run, dpi)
+    save_fig(fig, "weights_over_time.png", figure_path, dpi)
 
     first_replay = 2 * int(pattern_duration / dt / sim_step)
     train_output = train["r_visible"][-last_train:].T
@@ -562,15 +566,15 @@ def main(full_config, run_path, artifact_path, figure_path, neptune_run):
     # PCA
     # latent_activity = replay["r_latent"][-2 * last_train :].T
     # fig = plot_principal_components(latent_activity, target=train_target.T)
-    # save_fig(fig, "PCA.png", figure_path, neptune_run)
+    # save_fig(fig, "PCA.png", figure_path)
 
     replay_output = replay["r_visible"][:first_replay].T
     epoch_len = int(pattern_duration / dt / sim_step)
     fig = plot_activity_match(replay_output, epoch_len, train_target)
-    save_fig(fig, "activity_match_replay.png", figure_path, neptune_run, dpi)
+    save_fig(fig, "activity_match_replay.png", figure_path, dpi)
 
     fig = plot_connectivity_network(network.somatic_weights, num_vis=network.num_vis)
-    save_fig(fig, "somatic_connectivity", figure_path, neptune_run, dpi)
+    save_fig(fig, "somatic_connectivity", figure_path, dpi)
 
     dpi = 100
     gif = False
@@ -584,7 +588,6 @@ if __name__ == "__main__":
     import tomllib as toml
     from pathlib import Path
 
-    import neptune
     from utils import dict_to_namespace
 
     with open("config.toml", "rb") as f:
@@ -595,22 +598,10 @@ if __name__ == "__main__":
     path = Path(__file__).parent.resolve()
     artifact_path = path / "artifacts"
     figure_path = path / "figures"
-    config_path = path / "config.toml"
-
-    with open("run_id.txt", "r") as f:
-        run_id = f.read().strip()
-
-    neptune_run = neptune.init_run(
-        project="elise-neurotma/Elise-tests",
-        custom_run_id=run_id,
-        name=path.name,
-        tags=full_config.experiment_params.patterns,
-    )
 
     main(
         full_config,
         path,
         artifact_path,
         figure_path,
-        neptune_run,
     )

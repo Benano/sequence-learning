@@ -1,29 +1,33 @@
 [experiment_params]
-neptune_project = "Elise-tests"
+mlflow_experiment = "Elise-noise"
 seed = 2
 patterns = ['fuer_elise_ye']
-group_tag = ['Elise_main']
+group_tag = ['Noisy_u_lat']
 pre_transforms =  ['to_biounits'] # ORDER MATTERS GREATLY
 online_transforms =  [] 
 partial_replay = false
 replay_learning = true
 disruption = 0.0
+w_noise_sigma = 0.006
+w_noise_tau = 2000
+u_noise_sigma = 8.0
+u_noise_tau = 100
 
 [network_params]
-num_lat = 70
+num_lat = 50
 num_vis = 30
 
 [weight_params]
 weight_type = "developed" # developed, random
 p = 0.2
-q = 0.15
+q = 0.0
 p0 = 0.04
 W_vis_vis = [-0.5, 0.5]
 W_vis_lat = [-0.5, 0.5]
 W_lat_lat = [-0.5, 0.5]
 W_lat_vis = [-0.5, 0.5]
-d_den = [5, 15]
-d_som = [5, 15]
+d_den = [5, 25]
+d_som = [5, 25]
 d_int = 25
 d_den_seed = -1 # -1 seed random, else seed fixed
 d_som_seed = -1 # -1 seed random, else seed fixed
@@ -32,13 +36,13 @@ w_som_seed = -1 # -1 seed random, else seed fixed
 
 [simulation_params]
 dt = 0.1
-training_epochs = 400
+training_epochs = 200
 replay_epochs = 50
 training_cycles = 25
 validation_cycles = 2
 replay_cycles = 2
-eta_out = 10e-4
-eta_lat = 10e-3
+eta_out = 0.001
+eta_lat = 0.01
 eta_decay = 0.99
 
 [pattern_params]
@@ -71,6 +75,7 @@ vars_train = [
   ["u", "visible" ],
   ["u_inp", "visible" ],
   ["r", "visible" ],
+  ["r", "latent" ],
   ]
 
 vars_val = [
@@ -86,4 +91,5 @@ vars_epoch = [
 vars_replay = [
   ["u", "visible" ],
   ["r", "visible" ],
+  ["r", "latent" ],
   ]
