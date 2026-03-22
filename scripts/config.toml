@@ -1,75 +1,77 @@
 [experiment_params]
-mlflow_experiment = "Elise-noise"
-seed = 2
-patterns = ['fuer_elise_ye']
-group_tag = ['Noisy_u_lat']
-pre_transforms =  ['to_biounits'] # ORDER MATTERS GREATLY
-online_transforms =  [] 
-partial_replay = false
-replay_learning = true
-disruption = 0.0
-w_noise_sigma = 0.006
-w_noise_tau = 2000
-u_noise_sigma = 8.0
-u_noise_tau = 100
+mlflow_experiment = "Elise-noise"  # string: name of the MLflow experiment
+seed = 2                           # int: global random seed
+patterns = ['fuer_elise_original'] # list[str]: pattern file names (without extension) to train on
+group_tag = ['test']               # list[str]: tags for grouping/filtering runs in MLflow
+pre_transforms =  ['to_biounits']  # list[str]: transforms applied once before training — ORDER MATTERS
+online_transforms =  []            # list[str]: transforms applied each step during training (e.g. 'noise_corr', 'noise_white')
+partial_replay = false             # bool: if true, only the first quarter of the pattern is replayed in epoch 1
+replay_learning = true             # bool: if true, weights are updated during replay
+
+[noise_params]
+disruption = 0.0     # float: membrane potential (mV) that visible neurons are clamped to during the disruption window in replay (0.0 = no disruption)
+w_noise_sigma = 0.0  # float >= 0: std dev of weight noise (0.0 = no noise)
+w_noise_tau = 0      # int >= 0: time constant (steps) for weight noise correlation — Ornstein-Uhlenbeck process (0 = i.i.d. white noise)
+u_noise_sigma = 0.0  # float >= 0: std dev of membrane-potential noise (0.0 = no noise)
+u_noise_tau = 0      # int >= 0: time constant (steps) for u noise correlation — Ornstein-Uhlenbeck process (0 = i.i.d. white noise)
 
 [network_params]
-num_lat = 50
-num_vis = 30
+num_lat = 50  # int: number of latent neurons
+num_vis = 30  # int: number of visible neurons
 
 [weight_params]
-weight_type = "developed" # developed, random
-p = 0.2
-q = 0.0
-p0 = 0.04
-W_vis_vis = [-0.5, 0.5]
-W_vis_lat = [-0.5, 0.5]
-W_lat_lat = [-0.5, 0.5]
-W_lat_vis = [-0.5, 0.5]
-d_den = [5, 25]
-d_som = [5, 25]
-d_int = 25
-d_den_seed = -1 # -1 seed random, else seed fixed
-d_som_seed = -1 # -1 seed random, else seed fixed
-w_den_seed = -1 # -1 seed random, else seed fixed
-w_som_seed = -1 # -1 seed random, else seed fixed
+weight_type = "developed" # str: "developed" (structured probabilistic init) or "random"
+p = 0.2                   # float [0, 1]: per-synapse connection probability — probability of adding each successive connection
+q = 0.0                   # float [0, 1]: controls probability that a target neuron accepts an incoming connection
+p0 = 0.04                 # float [0, 1]: baseline connection probability for the first connection attempt to a neuron
+W_vis_vis = [-0.5, 0.5]   # [min, max]: initial weight range for visible→visible connections
+W_vis_lat = [-0.5, 0.5]   # [min, max]: initial weight range for visible→latent connections
+W_lat_lat = [-0.5, 0.5]   # [min, max]: initial weight range for latent→latent connections
+W_lat_vis = [-0.5, 0.5]   # [min, max]: initial weight range for latent→visible connections
+d_den = [5, 25]           # [min, max]: dendritic (plastic) synaptic delay range (steps)
+d_som = [5, 25]           # [min, max]: somatic (fixed) synaptic delay range (steps)
+d_int = 25                # int: fixed delay for all lateral inhibitory synapses (steps)
+d_den_seed = -1           # int: seed for dendritic delay sampling (-1 = random each run)
+d_som_seed = -1           # int: seed for somatic delay sampling (-1 = random each run)
+w_den_seed = -1           # int: seed for dendritic weight sampling (-1 = random each run)
+w_som_seed = -1           # int: seed for somatic weight sampling (-1 = random each run)
 
 [simulation_params]
-dt = 0.1
-training_epochs = 200
-replay_epochs = 50
-training_cycles = 25
-validation_cycles = 2
-replay_cycles = 2
-eta_out = 0.001
-eta_lat = 0.01
-eta_decay = 0.99
+dt = 0.1                # float: integration time step (ms)
+training_epochs = 200   # int: number of full training epochs
+replay_epochs = 50      # int: number of replay epochs after training
+training_cycles = 25    # int: pattern repetitions per training epoch
+validation_cycles = 2   # int: pattern repetitions per validation pass
+replay_cycles = 2       # int: pattern repetitions per replay epoch
+eta_out = 0.001         # float > 0: learning rate for visible (output) weights (scaled internally by 1/dt)
+eta_lat = 0.01          # float > 0: learning rate for latent weights (scaled internally by 1/dt)
+eta_decay = 0.99        # float [0, 1]: multiplicative learning-rate decay applied after each epoch
 
 [pattern_params]
-pattern_duration = 250.0
-pattern_dt = 1.0
-noise_sigma = 8.0
-noise_tau = 100.0
-non_markov = 12
-non_markov_type = "copied"
+pattern_duration = 250.0       # float: total pattern duration (ms)
+pattern_dt = 1.0               # float: pattern time resolution (ms)
+noise_sigma = 8.0              # float >= 0: std dev of input pattern noise
+noise_tau = 100.0              # float > 0: time constant of input noise correlation (ms)
+non_markov = 12                # int >= 0: number of timesteps of non-Markovian structure in the pattern
+non_markov_type = "copied"     # str: method for building non-Markovian patterns — "none", "sampled", or "copied" (copies first-half chunk into second half)
 
 [neuron_params]
-C_v = 1.0
-C_u = 1.0
-E_l = -70.0
-E_exc = 0.0
-E_inh = -75.0
-g_l = 0.1
-g_den = 2.0
-g_exc_0 = 0.3
-g_inh_0 = 6.0
-a   = 0.3
-b   = -58.0
-lam = 0.7
+C_v = 1.0      # float > 0: membrane capacitance of visible neurons
+C_u = 1.0      # float > 0: membrane capacitance of latent neurons
+E_l = -70.0    # float: leak reversal potential (mV)
+E_exc = 0.0    # float: excitatory reversal potential (mV)
+E_inh = -75.0  # float: inhibitory reversal potential (mV)
+g_l = 0.1      # float > 0: leak conductance
+g_den = 2.0    # float > 0: dendritic conductance coupling
+g_exc_0 = 0.3  # float > 0: baseline excitatory conductance
+g_inh_0 = 6.0  # float > 0: baseline inhibitory conductance
+a   = 0.3      # float: slope of the sigmoid activation phi(u) = 1 / (1 + exp(a*(b - u)))
+b   = -58.0    # float: voltage threshold of the sigmoid — membrane potential (mV) at which firing rate is 0.5
+lam = 0.7      # float [0, 1]: dendritic-somatic coupling weight, balancing dendritic vs. somatic input contributions
 
 [tracking_params]
-sim_step = 4
-track_training = true
+sim_step = 4           # int >= 1: record state every N simulation steps (higher = less data stored)
+track_training = true  # bool: if true, record variables during training (not just validation)
 
 vars_train = [
   ["u", "visible" ],
