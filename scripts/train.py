@@ -6,7 +6,6 @@ import mlflow
 import numpy as np
 from tqdm import tqdm
 from utils import load_pattern_flexible
-from weight_metrics import analyze_connectivity_metrics
 
 from elise.data import (
     Dataloader,
@@ -310,17 +309,6 @@ def main(
     train_tracker.store("r_target_real", r_target_real)
     validation_tracker.store("r_target", r_target)
     validation_tracker.store("losses", losses)
-
-    som_w_metrics = analyze_connectivity_metrics(
-        somatic_weights.weight_matrix, network.num_vis, cycles=False
-    )
-    den_w_metrics = analyze_connectivity_metrics(
-        dendritic_weights.weight_matrix, network.num_vis, cycles=False
-    )
-    for k, v in den_w_metrics.items():
-        mlflow.log_metric(f"weight_metrics.dendritic.{k}", float(v))
-    for k, v in som_w_metrics.items():
-        mlflow.log_metric(f"weight_metrics.somatic.{k}", float(v))
 
     if isinstance(dataloader, MultiPatternDataloader):
         first = dataloader.widths[0]

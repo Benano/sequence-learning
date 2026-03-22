@@ -4,6 +4,7 @@ import hashlib
 from datetime import datetime
 from pathlib import Path
 
+import coolname
 import mlflow
 
 
@@ -92,9 +93,11 @@ def main(parameter_tag, saving, debug):
             full_config.simulation_params
         )
 
+    run_name = f"{coolname.generate_slug(2)}-{datetime.now().strftime('%m%d-%H%M')}"
+
     mlflow.set_experiment(experiment_name)
     mlflow.start_run(
-        run_name=run_path.name,
+        run_name=run_name,
         tags={t: "true" for t in tags},
     )
     mlflow.set_tag("group_tag", str(exp_config.group_tag))
