@@ -574,7 +574,7 @@ def main(full_config, run_path, artifact_path, figure_path):
     save_fig(fig, "activity_match_replay.png", figure_path, dpi)
 
     fig = plot_connectivity_network(network.somatic_weights, num_vis=network.num_vis)
-    save_fig(fig, "somatic_connectivity", figure_path, dpi)
+    save_fig(fig, "somatic_connectivity.png", figure_path, dpi)
 
     dpi = 100
     gif = False
