@@ -37,6 +37,7 @@ def main(
     rng,
 ):
     experiment_params = full_config.experiment_params
+    noise_params = full_config.noise_params
     neuron_params = full_config.neuron_params
     network_params = full_config.network_params
     simulation_params = full_config.simulation_params
@@ -235,14 +236,10 @@ def main(
     losses = defaultdict(list)
 
     w_noise = CorrelatedNoise(
-        experiment_params.w_noise_sigma,
-        experiment_params.w_noise_tau,
-        simulation_params.dt,
+        noise_params.w_noise_sigma, noise_params.w_noise_tau, simulation_params.dt
     )
     u_noise = CorrelatedNoise(
-        experiment_params.u_noise_sigma,
-        experiment_params.u_noise_tau,
-        simulation_params.dt,
+        noise_params.u_noise_sigma, noise_params.u_noise_tau, simulation_params.dt
     )
 
     for epoch in tqdm(range(nr_epochs)):
@@ -321,7 +318,7 @@ def main(
     # Create dictionary to store losses that uses list as value
     losses = defaultdict(list)
     replay_network = copy.deepcopy(network)
-    disruption = experiment_params.disruption
+    disruption = noise_params.disruption
 
     for epoch in tqdm(range(simulation_params.replay_epochs)):
         for t in np.arange(0, replay_duration, simulation_params.dt):

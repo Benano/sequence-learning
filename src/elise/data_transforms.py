@@ -103,8 +103,11 @@ class CorrelatedNoise:
             dt = self.dt
 
         x = np.asarray(x)
-        if self.last_noise is None:
-            # First call: just draw i.i.d. Gaussian noise with same shape as x
+        if self.sigma == 0.0:
+            return x
+
+        if self.tau == 0.0 or self.last_noise is None:
+            # i.i.d. white noise (tau=0 means uncorrelated)
             noise = np.random.normal(0.0, self.sigma, size=x.shape)
         else:
             # OU update per element
