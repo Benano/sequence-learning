@@ -1,25 +1,28 @@
-# TODO: add versions
 pip >= 23.0
 
-# developement tools etc.
-flake8  # linting tool for python. Is used as pre-commit hook
-black  # automatic code formatter, PEP8 conform, used as pre-commit hook
-black[jupyter]  # the same for jupyter notebooks
-isort  # sorts the imports, pre-commmit hook
-pre-commit  # well, the pre-commit hook thing
-sphinx  # automatic documentation tool
-pytest  # very powerful testing framework in python
-pytest-sugar  # make pytest appearance look nicer
-pytest-cov  # report the test coverage
-nbstripout  # strips the outputs from jupiter notebooks. Very handy when using
-# jupyter with git. pre-commit hook
-mypy  # type checking in python
+# development tools
+flake8
+black
+black[jupyter]
+isort
+pre-commit
+sphinx
+pytest
+pytest-sugar
+pytest-cov
+nbstripout
+mypy
 setuptools >= 67.0
-
-# add here the actual dependencies:
-numpy
-matplotlib
 jupyterlab
-tqdm
-scipy
+
+# project dependencies (keep in sync with pyproject.toml)
+numpy >= 1.24
+matplotlib >= 3.7
 numba
+scipy
+tqdm
+mlflow
+networkx
+tomli_w
+coolname
+scikit-learn

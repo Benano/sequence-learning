@@ -1,0 +1,9 @@
+[experiment_params]
+seed = 2
+patterns = ['fuer_elise_ye']
+group_tag = ['Elise_main']
+pre_transforms =  ['to_biounits'] # ORDER MATTERS GREATLY
+online_transforms =  [] 
+partial_replay = false
+replay_learning = true
+disruption = 0.0

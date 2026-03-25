@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
-from elise.config import FullConfig
 from elise.data import Dataloader, MultiHotPattern
 from elise.model import Network, eq_phi  # noqa
 from elise.optimizer import SimpleUpdater
@@ -25,17 +24,22 @@ from elise.weights import DendriticWeights, SomaticWeights
 
 def main(path, artifacts_path):
     # Config
-    full_config = FullConfig(path / "smoketest_config.toml")
+    # open picked config
+    with open(path / "smoketest_config.toml", "rb") as f:
+        full_config = f.read()
+
     neuron_params = full_config.neuron_params
     network_params = full_config.network_params
     simulation_params = full_config.simulation_params
+    pattern_params = full_config.pattern_params
     weight_params = full_config.weight_params
     track_params = full_config.tracking_params
 
     # Network
     rate_buffer = Buffer
-    dendritic_weights = DendriticWeights(weight_params)
-    somatic_weights = SomaticWeights(weight_params)
+    rng = np.random.default_rng(42)
+    dendritic_weights = DendriticWeights(weight_params, rng_d=rng, rng_w=rng)
+    somatic_weights = SomaticWeights(weight_params, rng_d=rng, rng_w=rng)
     network = Network(
         network_params, neuron_params, dendritic_weights, somatic_weights, rate_buffer
     )
@@ -58,27 +62,24 @@ def main(path, artifacts_path):
 
     pattern = MultiHotPattern(
         pattern=elise,
-        duration=simulation_params.pattern_duration,
-        width=network_params.num_vis,
+        duration=pattern_params.pattern_duration,
     )
     loader = Dataloader(pattern, pre_transforms=[to_biounits])
     u_target = loader.get_full_pattern(dt)
 
     # Sim params
     training_duration = (
-        simulation_params.training_cycles * simulation_params.pattern_duration
+        simulation_params.training_cycles * pattern_params.pattern_duration
     )
     validation_duration = (
-        simulation_params.validation_cycles * simulation_params.pattern_duration
+        simulation_params.validation_cycles * pattern_params.pattern_duration
     )
-    replay_duration = (
-        simulation_params.replay_cycles * simulation_params.pattern_duration
-    )
+    replay_duration = simulation_params.replay_cycles * pattern_params.pattern_duration
 
     # Sim Trackers
-    train_tracker = Tracker(network, track_params.vars_train, track_params.sim_step)
-    validation_tracker = Tracker(network, track_params.vars_val, track_params.sim_step)
-    replay_tracker = Tracker(network, track_params.vars_replay, track_params.sim_step)
+    train_tracker = Tracker(track_params.vars_train, track_params.sim_step)
+    validation_tracker = Tracker(track_params.vars_val, track_params.sim_step)
+    replay_tracker = Tracker(track_params.vars_replay, track_params.sim_step)
 
     for epoch in tqdm(range(simulation_params.training_epochs)):
         for t in np.arange(0, training_duration, simulation_params.dt):
@@ -86,13 +87,13 @@ def main(path, artifacts_path):
 
             # Only record in last epoch
             if epoch == simulation_params.training_epochs - 1:
-                train_tracker.track(t)
+                train_tracker.track(network, t)
 
         # Validation
         if epoch != simulation_params.training_epochs - 1:
             for t in np.arange(0, validation_duration, simulation_params.dt):
                 network(u_inp=None)
-                validation_tracker.track(t)
+                validation_tracker.track(network, t)
 
             u_out = np.array(validation_tracker["u_visible"])
             mse_loss = np.min(window_slider(u_out, u_target, mse))
@@ -107,7 +108,7 @@ def main(path, artifacts_path):
     # replay
     for t in np.arange(0, replay_duration, simulation_params.dt):
         network(u_inp=None)
-        replay_tracker.track(t)
+        replay_tracker.track(network, t)
 
     u_out = np.array(replay_tracker["u_visible"])
     replay_losses = window_slider(u_out, u_target, mse)

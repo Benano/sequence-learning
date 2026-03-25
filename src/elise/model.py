@@ -6,19 +6,19 @@ import numba
 import numpy as np
 import numpy.typing as npt
 
-from .config import NetworkConfig, NeuronConfig
 from .rate_buffer import Buffer
 from .weights import DendriticWeights, SomaticWeights
 
 # disable numba jit for debugging etc.
 numba.config.DISABLE_JIT = False
+np.seterr(all="raise")
 
 
 class Network:
     def __init__(
         self,
-        network_params: NetworkConfig,
-        neuron_params: NeuronConfig,
+        network_params: dict,
+        neuron_params: dict,
         dendritic_weights: DendriticWeights,
         somatic_weights: SomaticWeights,
         rate_buffer: Buffer,
@@ -67,6 +67,15 @@ class Network:
         }
 
         self.dt = None
+
+    def set_visible_activity(self, activity: int):
+        """
+        Set the activity of the visible neurons.
+
+        :param activity: Activity to set the visible neurons to.
+        :type activity: int
+        """
+        self.u[self.view_visible] = activity
 
     def reset_activity(self):
         """
@@ -132,6 +141,8 @@ class Network:
 
     def _compute_update(self, u_inp):
         # Compute delayed rates
+
+        self.u_inp = u_inp
         self.r_den = self.rate_buffer.get(self.dt_dendritic_delays)
         self.r_exc = self.rate_buffer.get(self.dt_somatic_delays)
         self.r_inh = self.rate_buffer.get(self.dt_interneuron_delays)
@@ -144,7 +155,7 @@ class Network:
             r_den=self.r_den,
             r_exc=self.r_exc,
             r_inh=self.r_inh,
-            u_inp=u_inp,
+            u_inp=self.u_inp,
             w_som=self.somatic_weights,
             C_v=self.neuron_params.C_v,
             C_u=self.neuron_params.C_u,
@@ -171,7 +182,7 @@ class Network:
 
         self.dendritic_weights += dwdt_full * self.dt
 
-    def _update_dyanmic_variables(self, dudt, dvdt, dr_bar_dt):
+    def _update_dynamic_variables(self, dudt, dvdt, dr_bar_dt):
         self.u += dudt * self.dt
         self.v += dvdt * self.dt
         self.r_bar += dr_bar_dt * self.dt
@@ -181,10 +192,18 @@ class Network:
         self.r = new_r
         self.rate_buffer.roll(new_r)
 
-    def __call__(self, u_inp):
+    def __call__(self, u_inp, learn: bool = True, u_noise_gen=None, w_noise_gen=None):
         dudt, dvdt, dwdt, dr_bar_dt = self._compute_update(u_inp)
-        self._update_dyanmic_variables(dudt, dvdt, dr_bar_dt)
-        self._update_weights(dwdt)
+
+        if u_noise_gen is not None:
+            dudt = u_noise_gen(dudt, dt=self.dt)
+
+        if w_noise_gen is not None:
+            dwdt = w_noise_gen(dwdt, dt=self.dt)
+
+        self._update_dynamic_variables(dudt, dvdt, dr_bar_dt)
+        if learn:
+            self._update_weights(dwdt)
         self._update_rates_and_buffer()
 
     def save(self, path: str) -> None:
