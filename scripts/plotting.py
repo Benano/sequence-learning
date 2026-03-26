@@ -7,9 +7,9 @@ from matplotlib import animation
 from matplotlib.animation import PillowWriter
 from matplotlib.collections import LineCollection
 from matplotlib.offsetbox import AnchoredText
-from weight_metrics import analyze_connectivity_metrics
 
 from elise.model import Network, eq_phi  # noqa
+from elise.weight_metrics import analyze_connectivity_metrics
 
 
 def plot_connectivity_network(weight_matrix, num_vis: int = None):
@@ -28,7 +28,6 @@ def plot_connectivity_network(weight_matrix, num_vis: int = None):
         node_size=20,
         arrows=False,
         font_size=8,
-        arrowsize=20,
         edge_color="gray",
         width=1.5,
     )

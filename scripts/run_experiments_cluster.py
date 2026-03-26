@@ -17,7 +17,7 @@ def deep_merge(base, overrides):
     return base
 
 
-def run_experiment(exp_toml_path, master_cfg_path, debug=False):
+def run_experiment(exp_toml_path, master_cfg_path):
     exp_id = exp_toml_path.stem
     # Use a timestamp or unique ID if you plan to run the same TOML multiple times
     run_dir = Path("cluster_runs") / exp_id
@@ -40,6 +40,8 @@ def run_experiment(exp_toml_path, master_cfg_path, debug=False):
     shutil.copy("train.py", run_dir / "train.py")
     shutil.copy("utils.py", run_dir / "utils.py")  # Add other dependencies here
     shutil.copy("plotting.py", run_dir / "plotting.py")  # Add other dependencies here
+    shutil.copy("array.sh", run_dir / "array.sh")  # Add other dependencies here
+
     # Copy your library/package entirely
     if Path("elise").exists():
         shutil.copytree("elise", run_dir / "elise", dirs_exist_ok=True)
@@ -50,24 +52,17 @@ def run_experiment(exp_toml_path, master_cfg_path, debug=False):
 
     # 3. DISPATCH TO CLUSTER
     # Replace this with your sbatch/qsub command if using Slurm/PBS
-    if debug:
-        subprocess.Popen(["python", "run.py", "--debug"], cwd=run_dir)
-    else:
-        subprocess.Popen(["python", "run.py"], cwd=run_dir)
+    subprocess.Popen(["sbatch", "array.sh"], cwd=run_dir)
 
 
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Run neural simulations.")
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument(
+    parser.add_argument(
         "experiment",
         nargs="?",
-        help="Name of the experiment .toml file.",
-    )
-    group.add_argument(
-        "--all", action="store_true", help="Run all experiments in experiments/."
+        help="Name of the experiment .toml file. If empty, runs all.",
     )
 
     parser.add_argument(
@@ -78,12 +73,15 @@ if __name__ == "__main__":
     master_cfg = Path("config.toml")
     exp_folder = Path("experiments")
 
-    if args.all:
-        print("Running all experiments in /experiments...")
-        for exp_file in exp_folder.glob("*.toml"):
-            run_experiment(exp_file, master_cfg, debug=args.debug)
-    else:
+    if args.experiment:
+        # Run specific experiment
         exp_file = exp_folder / f"{args.experiment}.toml"
         if not exp_file.exists():
-            parser.error(f"{exp_file} not found.")
-        run_experiment(exp_file, master_cfg, debug=args.debug)
+            print(f"Error: {exp_file} not found.")
+        else:
+            run_experiment(exp_file, master_cfg)
+    else:
+        # Run all .toml files in the folder
+        print("No specific experiment named. Processing all files in /experiments...")
+        for exp_file in exp_folder.glob("*.toml"):
+            run_experiment(exp_file, master_cfg)
