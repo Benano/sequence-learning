@@ -13,6 +13,7 @@ from elise.data import (
     RandomCopiedNonMarkovianPattern,
     RandomPattern,
     RandomSampledNonMarkovianPattern,
+    ShuffleDataloader,
 )
 from elise.data_transforms import (
     AddNothing,
@@ -103,7 +104,21 @@ def build_dataloader(
         online_transform_dict[t] for t in experiment_params.online_transforms
     ]
 
-    if len(patterns) > 1:
+    dataloader_type = getattr(experiment_params, "dataloader_type", "multi")
+
+    if dataloader_type == "shuffle":
+        t_max = (
+            max(simulation_params.training_cycles, simulation_params.replay_cycles)
+            * patterns[0].duration
+            + 1.0
+        )
+        return ShuffleDataloader(
+            pattern=patterns,
+            t_max=t_max,
+            pre_transforms=pre_transforms,
+            online_transforms=online_transforms,
+        )
+    elif len(patterns) > 1:
         return MultiPatternDataloader(
             patterns=patterns,
             pre_transform=pre_transforms,

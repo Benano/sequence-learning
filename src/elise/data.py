@@ -621,21 +621,25 @@ class ShuffleDataloader(BaseDataloader):
         for i in range(self.num_pattern):
             for transform in pre_transforms:
                 self.pattern[i].transform(transform)
-        # self.pattern[0].transform(pre_transforms[0])
-        # print(self.pattern[0])
+
+        # Interface attributes expected by the training pipeline
+        self.width = self.pattern[0].width
+        self.dt = self.pattern[0].dt
+        self.duration = self.durations[
+            0
+        ]  # single-pattern duration, used for cycle counting
 
         self._rng = np.random.default_rng(seed)
-        self.choice = lambda: self._rng.choice(self.num_pattern)
 
         # store the indexes of the randomly drawn pattern
-        self._pat_ids = [self.choice()]
+        self._pat_ids = [self._rng.choice(self.num_pattern)]
         # store the starting times of the pattern
         self._starting_times = [t_start]
 
         # now, fill the arrays until t_max
         # we do this, because the pattern can have arbitrary lengths:
         while self._starting_times[-1] < t_max:
-            current_pat_idx = self.choice()
+            current_pat_idx = self._rng.choice(self.num_pattern)
             self._pat_ids.append(current_pat_idx)
             self._starting_times.append(
                 self._starting_times[-1] + self.durations[self._pat_ids[-2]]
@@ -683,7 +687,7 @@ class ShuffleDataloader(BaseDataloader):
         time_in_pattern = t - self._starting_times[idx_in_sequence]
 
         # get the pattern at the time t:
-        idx_in_pattern = int((time_in_pattern) / self.dts[idx_in_sequence])
+        idx_in_pattern = int((time_in_pattern) / self.dts[pat_idx])
         pattern_t = self.pattern[pat_idx][idx_in_pattern]
 
         pattern_t = self._apply_online_transforms(pattern_t)
@@ -720,26 +724,33 @@ class ShuffleDataloader(BaseDataloader):
             yield t, self.__call__(t, offset=dt * 0.01)
             t += dt
 
-    def get_full_pattern(self, dt, idx: Optional[List[int]] = None):
+    def get_full_pattern(
+        self,
+        dt: float,
+        idx: Optional[List[int]] = None,
+        online_transforms: bool = True,
+        num: int = 1,
+    ):
         """
-        Retrieve the full concatenated pattern sequence.
-
-        Combines all selected patterns into a single array after applying online
-        transformations.
+        Retrieve the full concatenated pattern sequence (patterns concatenated in time).
 
         :param dt: Time step used for sampling patterns.
         :type dt: float
-        :param idx: Indices of patterns to include in the concatenation. Defaults to
-        all patterns if None.
+        :param idx: Indices of patterns to include. Defaults to all patterns.
         :type idx: Optional[List[int]]
-        :return: The concatenated array of transformed patterns.
+        :param online_transforms: Whether to apply online transforms.
+        :type online_transforms: bool
+        :param num: Unused — kept for interface compatibility with other dataloaders.
+        :type num: int
+        :return: The concatenated array of patterns (time × width).
         :rtype: np.ndarray
         """
         full_pattern = []
         if idx is None:
             idx = list(range(self.num_pattern))
+        transforms = self.online_transforms if online_transforms else []
         for i in idx:
-            dl = Dataloader(self.pattern[i], online_transforms=self.online_transforms)
+            dl = Dataloader(self.pattern[i], online_transforms=transforms)
             full_pattern.append(dl.get_full_pattern(dt))
 
         return np.concatenate(full_pattern, axis=0)
