@@ -150,7 +150,7 @@ class Pattern(BasePattern):
 
 class RandomPattern(BasePattern):
     def __init__(self, duration, width, rng, dt: float = 1.0):
-        self.nr_notes = int(duration)
+        self.nr_notes = int(duration / dt)
         self.width = width
         self.dt = dt
         self.rng = rng
@@ -176,7 +176,7 @@ class RandomPattern(BasePattern):
 
 class RandomSampledNonMarkovianPattern(BasePattern):
     def __init__(self, duration, width, rng, dt: float = 1.0, nmk=2):
-        self.nr_notes = int(duration)
+        self.nr_notes = int(duration / dt)
         self.width = width
         self.dt = dt
         self.rng = rng
@@ -206,7 +206,7 @@ class RandomSampledNonMarkovianPattern(BasePattern):
 
 class RandomCopiedNonMarkovianPattern(BasePattern):
     def __init__(self, duration, width, rng, dt: float = 1.0, nmk=2):
-        self.nr_notes = int(duration)
+        self.nr_notes = int(duration / dt)
         self.width = width
         self.dt = dt
         self.rng = rng

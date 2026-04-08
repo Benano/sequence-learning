@@ -61,7 +61,6 @@ def load_patterns(experiment_params, pattern_params, network_params, pattern_pat
                     dt=pattern_params.pattern_dt,
                     nmk=pattern_params.non_markov,
                 )
-            patterns.append(pattern)
         else:
             pattern_file = pattern_path / f"{pattern_name}.txt"
             pattern = load_pattern_flexible(
@@ -69,7 +68,9 @@ def load_patterns(experiment_params, pattern_params, network_params, pattern_pat
                 pattern_params.pattern_duration,
                 pattern_params.pattern_dt,
             )
-            patterns.append(pattern)
+
+        patterns.append(pattern)
+
     return patterns
 
 
@@ -106,24 +107,26 @@ def build_dataloader(
 
     dataloader_type = getattr(experiment_params, "dataloader_type", "multi")
 
-    if dataloader_type == "shuffle":
-        t_max = (
-            max(simulation_params.training_cycles, simulation_params.replay_cycles)
-            * patterns[0].duration
-            + 1.0
-        )
-        return ShuffleDataloader(
-            pattern=patterns,
-            t_max=t_max,
-            pre_transforms=pre_transforms,
-            online_transforms=online_transforms,
-        )
-    elif len(patterns) > 1:
-        return MultiPatternDataloader(
-            patterns=patterns,
-            pre_transform=pre_transforms,
-            online_transform=online_transforms,
-        )
+    if len(patterns) > 1:
+        if dataloader_type == "shuffle":
+            t_max = (
+                max(simulation_params.training_cycles, simulation_params.replay_cycles)
+                * patterns[0].duration
+                + 1.0
+            )
+            return ShuffleDataloader(
+                pattern=patterns,
+                t_max=t_max,
+                pre_transforms=pre_transforms,
+                online_transforms=online_transforms,
+            )
+
+        elif dataloader_type == "stacked":
+            return MultiPatternDataloader(
+                patterns=patterns,
+                pre_transform=pre_transforms,
+                online_transform=online_transforms,
+            )
     else:
         return Dataloader(
             patterns[0],
@@ -143,6 +146,7 @@ def log_pattern_figure(dataloader, pattern_params):
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
     mlflow.log_figure(fig, "pattern.png")
+    plt.show()
     fig.clf()
 
 
