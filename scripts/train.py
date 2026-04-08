@@ -37,7 +37,7 @@ def load_patterns(experiment_params, pattern_params, network_params, pattern_pat
     patterns = []
     for pattern_name in experiment_params.patterns:
         if pattern_name == "random":
-            pattern_rng = copy.deepcopy(rng)
+            pattern_rng = np.random.default_rng(rng.integers(2**63))
             if pattern_params.non_markov_type == "none":
                 pattern = RandomPattern(
                     width=network_params.num_vis,
