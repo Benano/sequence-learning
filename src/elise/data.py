@@ -2,7 +2,7 @@
 
 # /usr/bin/env python3
 
-
+import copy
 import pickle
 from abc import ABC, abstractmethod
 from typing import Any, Callable, List, Optional, Tuple, Union
@@ -552,13 +552,197 @@ class DiscreteDataloader(BaseDataloader):
             self.apply_online_transforms = 0
 
         full_pattern = []
-        for _ in range(num):
-            for _, pattern in self.iter(0, self.duration, dt):
-                full_pattern.append(pattern)
+        for _, pattern in self.iter(0, self.duration - 0.5 * dt, dt):
+            full_pattern.append(pattern)
 
         self.apply_online_transforms = 1  # reset to default
 
         return np.array(full_pattern)
+
+
+class ShuffleDataloader(BaseDataloader):
+    """
+    A dataloader that shuffles patterns and applies transformations.
+
+    This class extends `BaseDataloader` and is designed to load data patterns,
+    shuffle them, and apply transformations both preemptively and online.
+
+    :param pattern: List of patterns to shuffle and iterate over.
+    :type pattern: List[Pattern]
+    :param t_max: Maximum time for the sequence.
+    :type t_max: float
+    :param t_start: Starting time for the sequence, defaults to 0.0.
+    :type t_start: float, optional
+    :param seed: Seed for random number generation, defaults to None.
+    :type seed: Optional[int], optional
+    :param pre_transforms: List of preprocessing transformations to apply once.
+    :type pre_transforms: List[Callable]
+    :param online_transforms: List of online transformations to apply during iteration,
+    defaults to an empty list.
+    :type online_transforms: List[Callable]
+    """
+
+    def __init__(
+        self,
+        pattern: List[Pattern],
+        t_max: float,
+        t_start: float = 0.0,
+        seed: Optional[int] = None,
+        pre_transforms: List[Callable] = [],
+        online_transforms: List[Callable] = [],
+    ) -> None:
+        """
+        Initialize the ShuffleDataloader instance.
+
+        Creates a shuffled sequence of patterns and applies pre-transforms.
+
+        :param pattern: List of patterns to shuffle and iterate over.
+        :type pattern: List[Pattern]
+        :param t_max: Maximum time for the sequence.
+        :type t_max: float
+        :param t_start: Starting time for the sequence, defaults to 0.0.
+        :type t_start: float, optional
+        :param seed: Seed for random number generation, defaults to None.
+        :type seed: Optional[int], optional
+        :param pre_transforms: List of preprocessing transformations to apply once.
+        :type pre_transforms: List[Callable]
+        :param online_transforms: List of online transformations to apply during
+        iteration, defaults to an empty list.
+        :type online_transforms: List[Callable]
+        """
+        self.pattern = copy.deepcopy(pattern)
+        self.num_pattern = len(pattern)
+        self.dts = [pat.dt for pat in self.pattern]
+        self.durations = [pat.duration for pat in self.pattern]
+        self.t_max = t_max
+        self.online_transforms = online_transforms
+
+        # apply pre-transforms directly once
+        for i in range(self.num_pattern):
+            for transform in pre_transforms:
+                self.pattern[i].transform(transform)
+        # self.pattern[0].transform(pre_transforms[0])
+        # print(self.pattern[0])
+
+        self._rng = np.random.default_rng(seed)
+        self.choice = lambda: self._rng.choice(self.num_pattern)
+
+        # store the indexes of the randomly drawn pattern
+        self._pat_ids = [self.choice()]
+        # store the starting times of the pattern
+        self._starting_times = [t_start]
+
+        # now, fill the arrays until t_max
+        # we do this, because the pattern can have arbitrary lengths:
+        while self._starting_times[-1] < t_max:
+            current_pat_idx = self.choice()
+            self._pat_ids.append(current_pat_idx)
+            self._starting_times.append(
+                self._starting_times[-1] + self.durations[self._pat_ids[-2]]
+            )
+
+    def _apply_online_transforms(self, pattern_1d):
+        """
+        Apply online transformations to a pattern.
+
+        This method applies all specified online transformations in sequence
+        to the given 1-dimensional pattern.
+
+        :param pattern_1d: The input pattern to transform.
+        :type pattern_1d: Any
+        :return: Transformed pattern.
+        :rtype: Any
+        """
+        for transform in self.online_transforms:
+            pattern_1d = transform(pattern_1d)
+        return pattern_1d
+
+    def __call__(self, t: float, offset: float = 1e-6):
+        """
+        Retrieve the pattern at a specific time `t`.
+
+        This method finds the appropriate pattern based on the given time `t`,
+        applies online transformations, and returns the transformed result.
+
+        :param t: Time at which to retrieve the pattern.
+        :type t: float
+        :param offset: Small offset added to `t` for numerical stability,
+        defaults to 1e-6.
+        :type offset: float, optional
+        :return: Transformed pattern at time `t`.
+        :rtype: Any
+
+        :raises ValueError: If `t` exceeds `t_max`.
+        """
+        if t > self.t_max:
+            raise ValueError("t must be small smaller than t_max.")
+        # find index of the pattern that is at t:
+        t += offset
+        idx_in_sequence = np.searchsorted(self._starting_times, t) - 1
+        pat_idx = self._pat_ids[idx_in_sequence]
+        time_in_pattern = t - self._starting_times[idx_in_sequence]
+
+        # get the pattern at the time t:
+        idx_in_pattern = int((time_in_pattern) / self.dts[idx_in_sequence])
+        pattern_t = self.pattern[pat_idx][idx_in_pattern]
+
+        pattern_t = self._apply_online_transforms(pattern_t)
+
+        return pattern_t
+
+    def iter(self, t_start, t_stop, dt):
+        """
+        Use dataloader as an iterator/iterable.
+
+        Generates tuples of time and corresponding patterns between `t_start`
+        and `t_stop` with a step size of `dt`.
+
+        :param t_start: Start time of iteration.
+        :type t_start: float
+        :param t_stop: Stop time of iteration.
+        :type t_stop: float
+        :param dt: Time step between iterations.
+        :type dt: float
+        :yield: Tuple containing time and corresponding pattern.
+        :rtype: Iterator[Tuple[float, np.ndarray]]
+
+        Example:
+            >>> for t, pattern in dataloader.iter(t_start=0.0, t_stop=10.0, dt=0.1):
+            ...     print(t, pattern)
+            ...
+            0.0 [pattern data]
+            0.1 [pattern data]
+            ...
+            9.9 [pattern data]
+        """
+        t = t_start
+        while t < t_stop:
+            yield t, self.__call__(t, offset=dt * 0.01)
+            t += dt
+
+    def get_full_pattern(self, dt, idx: Optional[List[int]] = None):
+        """
+        Retrieve the full concatenated pattern sequence.
+
+        Combines all selected patterns into a single array after applying online
+        transformations.
+
+        :param dt: Time step used for sampling patterns.
+        :type dt: float
+        :param idx: Indices of patterns to include in the concatenation. Defaults to
+        all patterns if None.
+        :type idx: Optional[List[int]]
+        :return: The concatenated array of transformed patterns.
+        :rtype: np.ndarray
+        """
+        full_pattern = []
+        if idx is None:
+            idx = list(range(self.num_pattern))
+        for i in idx:
+            dl = Dataloader(self.pattern[i], online_transforms=self.online_transforms)
+            full_pattern.append(dl.get_full_pattern(dt))
+
+        return np.concatenate(full_pattern, axis=0)
 
 
 class ContinuousDataloader(BaseDataloader):
