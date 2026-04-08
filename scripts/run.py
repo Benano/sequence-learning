@@ -54,6 +54,7 @@ def main(parameter_tag, saving, debug):
     from utils import dict_to_namespace
 
     path = Path(__file__).parent.resolve()
+    mlflow.set_tracking_uri(f"sqlite:///{path.parent.parent / 'mlflow.db'}")
 
     # 1. Load the merged config (this is the one created by the Runner script)
     with open(path / "config.toml", "rb") as f:
