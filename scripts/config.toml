@@ -1,8 +1,8 @@
 [experiment_params]
-mlflow_experiment = "Elise_mult"  # string: name of the MLflow experiment
+mlflow_experiment = "Multipattern"  # string: name of the MLflow experiment
 seed = 2                           # int: global random seed
-patterns = ['fuer_elise_original'] # list[str]: pattern file names (without extension) to train on
-group_tag = ['test']               # list[str]: tags for grouping/filtering runs in MLflow
+patterns = ['fuer_elise_original']
+group_tag = ['multi_pattern_shuffle']               # list[str]: tags for grouping/filtering runs in MLflow
 pre_transforms =  ['to_biounits']  # list[str]: transforms applied once before training — ORDER MATTERS
 online_transforms =  []            # list[str]: transforms applied each step during training (e.g. 'noise_corr', 'noise_white')
 dataloader_type = "shuffle"          # str: "multi" (patterns concatenated in width, simultaneous) or "shuffle" (patterns presented sequentially, one at a time)
@@ -20,7 +20,7 @@ u_noise_tau = 0      # int >= 0: time constant (steps) for u noise correlation �
 
 [network_params]
 num_lat = 50  # int: number of latent neurons
-num_vis = 30  # int: number of visible neurons
+num_vis = 4  # int: number of visible neurons
 
 [weight_params]
 weight_type = "developed" # str: "developed" (structured probabilistic init) or "random"
@@ -41,19 +41,22 @@ w_som_seed = -1           # int: seed for somatic weight sampling (-1 = random e
 
 [simulation_params]
 dt = 0.1                # float: integration time step (ms)
-training_epochs = 10   # int: number of full training epochs
+training_epochs = 20   # int: number of full training epochs
 replay_epochs = 50      # int: number of replay epochs after training
-training_cycles = 25    # int: pattern repetitions per training epoch
+training_cycles = 50    # int: pattern repetitions per training epoch
 validation_cycles = 2   # int: pattern repetitions per validation pass
 replay_cycles = 2       # int: pattern repetitions per replay epoch
 eta_out = 0.001         # float > 0: learning rate for visible (output) weights (scaled internally by 1/dt)
 eta_lat = 0.01          # float > 0: learning rate for latent weights (scaled internally by 1/dt)
-eta_decay = 0.99        # float [0, 1]: multiplicative learning-rate decay applied after each epoch
+eta_decay = 1       # float [0, 1]: multiplicative learning-rate decay applied after each epoch
+eval_cue_cycles = 4   # int: pattern repetitions used to cue the network before free-recall evaluation
+eval_free_cycles = 1  # int: pattern repetitions of free activity to measure after cueing
+eval_workers = 1      # int: number of parallel workers for per-pattern evaluation (1 = sequential)
 
 [pattern_params]
 pattern_duration = 250.0       # float: total pattern duration (ms)
-pattern_dt = 1.0               # float: pattern time resolution (ms)
-noise_sigma = 8.0              # float >= 0: std dev of input pattern noise
+pattern_dt = 15.0               # float: pattern time resolution (ms)
+noise_sigma = 0.0              # float >= 0: std dev of input pattern noise
 noise_tau = 100.0              # float > 0: time constant of input noise correlation (ms)
 non_markov = 12                # int >= 0: number of timesteps of non-Markovian structure in the pattern
 non_markov_type = "copied"     # str: method for building non-Markovian patterns — "none", "sampled", or "copied" (copies first-half chunk into second half)

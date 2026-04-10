@@ -54,9 +54,10 @@ def main(parameter_tag, saving, debug):
     from utils import dict_to_namespace
 
     path = Path(__file__).parent.resolve()
-    mlflow.set_tracking_uri(f"sqlite:///{path.parent.parent / 'mlflow.db'}")
+    scripts_dir = path if (path / "run_experiments.py").exists() else path.parent.parent
+    mlflow.set_tracking_uri(f"sqlite:///{scripts_dir / 'mlflow.db'}")
 
-    # 1. Load the merged config (this is the one created by the Runner script)
+    # Load config — only config.toml is used; experiment.toml is not merged here.
     with open(path / "config.toml", "rb") as f:
         config_dict = toml.load(f)
 
