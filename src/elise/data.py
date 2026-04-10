@@ -590,6 +590,7 @@ class ShuffleDataloader(BaseDataloader):
         seed: Optional[int] = None,
         pre_transforms: List[Callable] = [],
         online_transforms: List[Callable] = [],
+        block_size: int = 1,
     ) -> None:
         """
         Initialize the ShuffleDataloader instance.
@@ -609,6 +610,11 @@ class ShuffleDataloader(BaseDataloader):
         :param online_transforms: List of online transformations to apply during
         iteration, defaults to an empty list.
         :type online_transforms: List[Callable]
+        :param block_size: Number of consecutive presentations of each pattern before
+        switching to the next. 1 = fully random (default). Values > 1 reduce
+        catastrophic interference by giving the network longer uninterrupted exposure
+        to each pattern.
+        :type block_size: int
         """
         self.pattern = copy.deepcopy(pattern)
         self.num_pattern = len(pattern)
@@ -616,6 +622,7 @@ class ShuffleDataloader(BaseDataloader):
         self.durations = [pat.duration for pat in self.pattern]
         self.t_max = t_max
         self.online_transforms = online_transforms
+        self._block_size = max(1, block_size)
 
         # apply pre-transforms directly once
         for i in range(self.num_pattern):
@@ -630,20 +637,49 @@ class ShuffleDataloader(BaseDataloader):
         ]  # single-pattern duration, used for cycle counting
 
         self._rng = np.random.default_rng(seed)
+        self._generate_sequence(t_start)
 
-        # store the indexes of the randomly drawn pattern
-        self._pat_ids = [self._rng.choice(self.num_pattern)]
-        # store the starting times of the pattern
+    def _generate_sequence(self, t_start: float = 0.0) -> None:
+        """Build ``_pat_ids`` and ``_starting_times`` up to ``t_max``.
+
+        When ``block_size == 1`` each next pattern is chosen uniformly at
+        random (original behaviour, but now guaranteed not to repeat the same
+        pattern twice in a row when ``num_pattern > 1``).
+        When ``block_size > 1`` each pattern is shown ``block_size``
+        consecutive times before a different one is chosen.
+        Call :meth:`reshuffle` at the start of each training epoch to get a
+        fresh, different ordering.
+        """
+        first = int(self._rng.choice(self.num_pattern))
+        self._pat_ids = [first]
         self._starting_times = [t_start]
+        block_count = 1  # counts presentations of the current pattern so far
 
-        # now, fill the arrays until t_max
-        # we do this, because the pattern can have arbitrary lengths:
-        while self._starting_times[-1] < t_max:
-            current_pat_idx = self._rng.choice(self.num_pattern)
-            self._pat_ids.append(current_pat_idx)
+        while self._starting_times[-1] < self.t_max:
+            last_pat = self._pat_ids[-1]
+            if block_count >= self._block_size:
+                # Switch to a different pattern
+                block_count = 1
+                choices = [i for i in range(self.num_pattern) if i != last_pat]
+                next_pat = int(
+                    self._rng.choice(choices if choices else range(self.num_pattern))
+                )
+            else:
+                block_count += 1
+                next_pat = last_pat
+
+            self._pat_ids.append(next_pat)
             self._starting_times.append(
-                self._starting_times[-1] + self.durations[self._pat_ids[-2]]
+                self._starting_times[-1] + self.durations[last_pat]
             )
+
+    def reshuffle(self) -> None:
+        """Regenerate the pattern sequence with a new random ordering.
+
+        Call this at the start of each training epoch so the network sees
+        a different interleaving of patterns every epoch.
+        """
+        self._generate_sequence(t_start=0.0)
 
     def _apply_online_transforms(self, pattern_1d):
         """
