@@ -3,8 +3,12 @@ mlflow_experiment = "Elise-noise"  # string: name of the MLflow experiment
 seed = 2                           # int: global random seed
 patterns = ['fuer_elise_original'] # list[str]: pattern file names (without extension) to train on
 group_tag = ['test']               # list[str]: tags for grouping/filtering runs in MLflow
+patterns = ['fuer_elise_original']
+group_tag = ['multi_pattern_shuffle']               # list[str]: tags for grouping/filtering runs in MLflow
 pre_transforms =  ['to_biounits']  # list[str]: transforms applied once before training — ORDER MATTERS
 online_transforms =  []            # list[str]: transforms applied each step during training (e.g. 'noise_corr', 'noise_white')
+dataloader_type = "shuffle"          # str: "multi" (patterns concatenated in width, simultaneous) or "shuffle" (patterns presented sequentially, one at a time)
+shuffle_block_size = 4       # int: consecutive presentations of each pattern before switching (1=random, N>1=blocked)
 replay_learning = true             # bool: if true, weights are updated during replay
 
 [noise_params]
