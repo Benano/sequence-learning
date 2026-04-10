@@ -236,6 +236,8 @@ def run_training(
     )
 
     for epoch in tqdm(range(nr_epochs)):
+        if hasattr(dataloader, "reshuffle"):
+            dataloader.reshuffle()
         epoch_tracker.track(network, c_t)
 
         for t in np.arange(0, training_duration, simulation_params.dt):
