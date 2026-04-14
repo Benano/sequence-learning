@@ -147,7 +147,7 @@ def log_pattern_figure(dataloader, pattern_params):
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Neurons")
     mlflow.log_figure(fig, "pattern.png")
-    plt.show()
+    # plt.show()
     fig.clf()
 
 
@@ -210,10 +210,43 @@ def log_per_pattern_losses(r_out, r_target, widths, prefix, epoch, losses):
         losses[f"{prefix}_loss_pat_{i}"].append(loss)
 
 
+def nudge_network(
+    network,
+    dataloader,
+    nr_nudging_cycles: int,
+    proportion_width: float = 1.0,
+    proportion_height: float = 1.0,
+    learn: bool = False,
+) -> None:
+    """Drive the network with a (possibly partial) pattern for nr_nudging_cycles
+    complete presentations before free-recall measurement.
+
+    :param proportion_width: Fraction of each cycle's duration during which the nudge
+        signal is applied. After this window the network runs freely (u_inp=None).
+    :param proportion_height: Fraction of visible neurons (from index 0) that receive
+        the nudge signal. The remaining neurons always run freely.
+    """
+    n_nudge = int(proportion_height * network.num_vis)
+    dt = network.dt
+    duration = dataloader.duration
+    nudge_cutoff = proportion_width * duration
+
+    for _ in range(nr_nudging_cycles):
+        for t in np.arange(0, duration, dt):
+            if t < nudge_cutoff:
+                pat_t = dataloader(t)
+                u_inp = network.get_val("u", "visible")
+                u_inp[:n_nudge] = pat_t[:n_nudge]
+                network(u_inp=u_inp, learn=learn)
+            else:
+                network(u_inp=None, learn=learn)
+
+
 def run_training(
     network,
     dataloader,
     simulation_params,
+    neuron_params,
     noise_params,
     track_params,
     targets,
@@ -240,6 +273,16 @@ def run_training(
         if hasattr(dataloader, "reshuffle"):
             dataloader.reshuffle()
         epoch_tracker.track(network, c_t)
+
+        # record = []
+        # for t in np.arange(0, training_duration, simulation_params.dt):
+        #     record.append(dataloader(t))
+
+        # record = np.array(record)
+        # fig, ax = plt.subplots()
+        # ax.imshow(record.T, aspect='auto', interpolation='none')
+        # plt.show()
+        # breakpoint()
 
         for t in np.arange(0, training_duration, simulation_params.dt):
             network(
@@ -268,25 +311,31 @@ def run_training(
 
         # Validation (skipped on final epoch — network state is needed for replay)
         if epoch != simulation_params.training_epochs - 1:
-            for t in np.arange(0, validation_duration, simulation_params.dt):
-                v_c_t = c_t + simulation_params.dt
-                network(u_inp=None, learn=False)
-                validation_tracker.track(network, v_c_t)
-
-            u_out = np.array(validation_tracker["u_visible"])[-2 * len(u_target) :]
-            r_out = np.array(validation_tracker["r_visible"])[-2 * len(u_target) :]
-
-            mse_loss_u = compute_loss(u_out, u_target, mse)
-            mse_loss_r = compute_loss(r_out, r_target, mse)
-
-            if isinstance(dataloader, MultiPatternDataloader):
-                log_per_pattern_losses(
-                    r_out, r_target, dataloader.widths, "validation", epoch, losses
+            for en, pattern_dl in enumerate(dataloader):
+                nudge_network(
+                    network,
+                    pattern_dl,
+                    simulation_params.validation_cue_cycles,
                 )
 
-            mlflow.log_metric("validation_loss_r", mse_loss_r, step=epoch)
-            losses["validation_loss_r"].append(mse_loss_r)
-            losses["validation_loss_u"].append(mse_loss_u)
+                u_target = pattern_dl.get_full_pattern(simulation_params.dt)[
+                    :: track_params.sim_step
+                ]
+                r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
+
+                for t in np.arange(0, validation_duration, simulation_params.dt):
+                    v_c_t = c_t + simulation_params.dt
+                    network(u_inp=None, learn=False)
+                    validation_tracker.track(network, v_c_t)
+
+                u_out = np.array(validation_tracker["u_visible"])[-2 * len(u_target) :]
+                r_out = np.array(validation_tracker["r_visible"])[-2 * len(u_target) :]
+                mse_loss_u = compute_loss(u_out, u_target, mse)
+                mse_loss_r = compute_loss(r_out, r_target, mse)
+
+                mlflow.log_metric(f"val_loss_r_pat_{en}", mse_loss_r, step=epoch)
+                losses[f"val_loss_u_pat_{en}"].append(mse_loss_u)
+                losses[f"val_loss_r_pat_{en}"].append(mse_loss_r)
 
     train_tracker.store("r_target", r_target)
     train_tracker.store("r_target_real", r_target_real)
@@ -298,68 +347,48 @@ def run_replay(
     network,
     dataloader,
     simulation_params,
+    neuron_params,
     noise_params,
     experiment_params,
+    track_params,
     targets,
     replay_tracker,
 ):
-    u_target, r_target, _ = targets
     replay_duration = simulation_params.replay_cycles * dataloader.duration
-    disruption = noise_params.disruption
-
-    if noise_params.partial_replay:
-        network.reset_activity()
-
-    # Width of the first pattern's neurons, used for partial cueing
-    if isinstance(dataloader, MultiPatternDataloader):
-        first = dataloader.widths[0]
-    else:
-        first = 5  # fallback: track first 5 neurons
-
     losses = defaultdict(list)
     replay_network = copy.deepcopy(network)
 
     for epoch in tqdm(range(simulation_params.replay_epochs)):
-        for t in np.arange(0, replay_duration, simulation_params.dt):
-            if (
-                disruption != 0
-                and epoch == 0
-                and dataloader.duration < t < 2 * dataloader.duration
-            ):
-                replay_network.set_visible_activity(disruption)
+        for en, pattern_dl in enumerate(dataloader):
+            replay_network.reset_activity()
 
-            if (
-                noise_params.partial_replay
-                and epoch == 1
-                and t < dataloader.duration * noise_params.partial_replay_fraction
-            ):
-                u_inp = copy.deepcopy(replay_network.get_val("u", "visible"))
-                u_tar = dataloader(t)[:first]
-                u_inp[:first] = u_tar
-                replay_network(u_inp=u_inp, learn=experiment_params.replay_learning)
-            else:
-                replay_network(u_inp=None, learn=experiment_params.replay_learning)
-
-            replay_tracker.track(replay_network, t)
-
-        u_out = np.array(replay_tracker["u_visible"])[-2 * len(u_target) :]
-        r_out = np.array(replay_tracker["r_visible"])[-2 * len(u_target) :]
-
-        mse_loss_u = compute_loss(u_out, u_target, mse)
-        mse_loss_r = compute_loss(r_out, r_target, mse)
-
-        mlflow.log_metric("replay_loss_r", mse_loss_r, step=epoch)
-
-        if isinstance(dataloader, MultiPatternDataloader):
-            log_per_pattern_losses(
-                r_out, r_target, dataloader.widths, "replay", epoch, losses
+            nudge_network(
+                replay_network,
+                pattern_dl,
+                simulation_params.replay_cue_cycles,
+                learn=experiment_params.replay_learning,
             )
 
-        losses["replay_loss_r"].append(mse_loss_r)
-        losses["replay_loss_u"].append(mse_loss_u)
+            u_target = pattern_dl.get_full_pattern(simulation_params.dt)[
+                :: track_params.sim_step
+            ]
+            r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
+
+            for t in np.arange(0, replay_duration, simulation_params.dt):
+                replay_network(u_inp=None, learn=experiment_params.replay_learning)
+                replay_tracker.track(replay_network, t)
+
+            u_out = np.array(replay_tracker["u_visible"])[-2 * len(u_target) :]
+            r_out = np.array(replay_tracker["r_visible"])[-2 * len(u_target) :]
+
+            mse_loss_r = compute_loss(r_out, r_target, mse)
+            mse_loss_u = compute_loss(u_out, u_target, mse)
+
+            mlflow.log_metric(f"replay_loss_r_pat_{en}", mse_loss_r, step=epoch)
+            losses[f"replay_loss_r_pat_{en}"].append(mse_loss_r)
+            losses[f"replay_loss_u_pat_{en}"].append(mse_loss_u)
 
     replay_tracker.store("losses", losses)
-    replay_tracker.store("r_target", r_target)
 
 
 def main(full_config, pattern_path, rng):
@@ -419,6 +448,7 @@ def main(full_config, pattern_path, rng):
         network,
         dataloader,
         simulation_params,
+        neuron_params,
         noise_params,
         track_params,
         targets,
@@ -428,8 +458,10 @@ def main(full_config, pattern_path, rng):
         network,
         dataloader,
         simulation_params,
+        neuron_params,
         noise_params,
         experiment_params,
+        track_params,
         targets,
         replay_tracker,
     )
