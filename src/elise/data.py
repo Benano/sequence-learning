@@ -677,6 +677,21 @@ class ShuffleDataloader(BaseDataloader):
         """
         self._generate_sequence(t_start=0.0)
 
+    def __iter__(self):
+        """Yield a single-pattern :class:`Dataloader` for each stored pattern.
+
+        Pre-transforms have already been applied to the stored patterns.
+        Online transforms are not included so that iteration is deterministic
+        (suitable for nudging / evaluation).
+
+        Example::
+
+            for pattern_dl in shuffle_dataloader:
+                nudge_network(network, pattern_dl, nr_nudging_cycles=2)
+        """
+        for pat in self.pattern:
+            yield Dataloader(pat)
+
     def _apply_online_transforms(self, pattern_1d):
         """
         Apply online transformations to a pattern.
