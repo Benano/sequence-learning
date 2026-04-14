@@ -119,6 +119,7 @@ def build_dataloader(
                 t_max=t_max,
                 pre_transforms=pre_transforms,
                 online_transforms=online_transforms,
+                block_size=getattr(experiment_params, "shuffle_block_size", 1),
             )
 
         elif dataloader_type == "stacked":

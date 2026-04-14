@@ -642,11 +642,10 @@ class ShuffleDataloader(BaseDataloader):
     def _generate_sequence(self, t_start: float = 0.0) -> None:
         """Build ``_pat_ids`` and ``_starting_times`` up to ``t_max``.
 
-        When ``block_size == 1`` each next pattern is chosen uniformly at
-        random (original behaviour, but now guaranteed not to repeat the same
-        pattern twice in a row when ``num_pattern > 1``).
-        When ``block_size > 1`` each pattern is shown ``block_size``
-        consecutive times before a different one is chosen.
+        Each block of ``block_size`` consecutive presentations uses the same
+        pattern; at the end of a block a new pattern is drawn uniformly at
+        random from all patterns (including the current one, so consecutive
+        blocks of the same pattern are possible, e.g. AAAA AAAA BBBB AAAA).
         Call :meth:`reshuffle` at the start of each training epoch to get a
         fresh, different ordering.
         """
@@ -658,12 +657,9 @@ class ShuffleDataloader(BaseDataloader):
         while self._starting_times[-1] < self.t_max:
             last_pat = self._pat_ids[-1]
             if block_count >= self._block_size:
-                # Switch to a different pattern
+                # Draw next block pattern uniformly (repeats allowed)
                 block_count = 1
-                choices = [i for i in range(self.num_pattern) if i != last_pat]
-                next_pat = int(
-                    self._rng.choice(choices if choices else range(self.num_pattern))
-                )
+                next_pat = int(self._rng.choice(self.num_pattern))
             else:
                 block_count += 1
                 next_pat = last_pat
