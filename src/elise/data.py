@@ -406,6 +406,20 @@ class BaseDataloader(ABC):
     def get_full_pattern(self, dt) -> npt.NDArray:
         pass
 
+    def __iter__(self):
+        """Yield single-pattern dataloaders.
+
+        Default behaviour: yield ``self``, treating the dataloader as a single
+        pattern.  Multi-pattern subclasses (e.g. :class:`ShuffleDataloader`,
+        :class:`MultiPatternDataloader`) override this to yield one dataloader
+        per stored pattern, enabling uniform iteration regardless of the
+        dataloader type::
+
+            for pattern_dl in dataloader:
+                nudge_network(network, pattern_dl, ...)
+        """
+        yield self
+
     def save(self, path: str) -> None:
         """
         Save the dataloader.
@@ -972,6 +986,10 @@ class MultiPatternDataloader(BaseDataloader):
         while t < t_stop:
             yield t, self.__call__(t)
             t += dt
+
+    def __iter__(self):
+        """Yield each constituent single-pattern dataloader."""
+        yield from self.dataloaders
 
     def get_individual_patterns(self, dt: float):
         """
