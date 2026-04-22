@@ -11,6 +11,8 @@ from matplotlib.offsetbox import AnchoredText
 from elise.model import Network, eq_phi  # noqa
 from elise.weight_metrics import analyze_connectivity_metrics
 
+_mlflow_enabled = True
+
 
 def plot_connectivity_network(weight_matrix, num_vis: int = None):
     """Plot connectivity matrix as a network graph."""
@@ -259,59 +261,159 @@ def plot_activity_lines(train_target, train_output, replay_output, dt):
     plt.show()
 
 
-def plot_activity_target_match(
-    train_output, replay_output, train_target, start_time, step
-):
-    # Create a figure with two subplots, sharing the x-axis
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 4), sharex=True)
-
-    # Concatenate train and val output
-    full_output = np.concatenate((train_output, replay_output), axis=1)
-
-    # Determine overall min and max values
-    vmin = min(np.min(full_output), np.min(train_target))
-    vmax = max(np.max(full_output), np.max(train_target))
-
+def plot_activity_target_match(replay_dicts, epoch_len):
+    n_patterns = len(replay_dicts)
     colormap = plt.get_cmap("Blues")
+    col_labels = ["Target", "Replay", "Replay (Epoch 20)"]
 
-    # Calculate x-ticks
-    xticks = np.arange(start_time, start_time + full_output.shape[1] * step, 500) / 1000
-
-    # Plot simulation output
-    im1 = ax1.imshow(
-        full_output,
-        aspect="auto",
-        interpolation="none",
-        cmap=colormap,
-        vmin=vmin,
-        vmax=vmax,
+    fig, axes = plt.subplots(
+        n_patterns,
+        3,
+        figsize=(12, 3 * n_patterns),
+        squeeze=False,
+        sharey="row",
+        sharex="col",
+        width_ratios=(0.5, 1, 1),
     )
-    ax1.set_ylabel(r"Neuron")
-    ax1.set_title(r"Output")
-    ax1.axvline(train_target.shape[1], color="red", linestyle="--")
 
-    # Plot target output
-    ax2.imshow(
-        train_target,
-        aspect="auto",
-        interpolation="none",
-        cmap=colormap,
-        vmin=vmin,
-        vmax=vmax,
+    for i, replay in enumerate(replay_dicts):
+        target = replay["r_target"][0].T  # (neurons, time)
+        replay_output = replay["r_visible"][: epoch_len * 2].T  # (neurons, 2 epochs)
+        replay_epoch20 = replay["r_visible"][epoch_len * 20 : epoch_len * 22].T
+
+        vmin = min(np.min(target), np.min(replay_output), np.min(replay_epoch20))
+        vmax = max(np.max(target), np.max(replay_output), np.max(replay_epoch20))
+
+        for j, data in enumerate([target, replay_output, replay_epoch20]):
+            axes[i, j].imshow(
+                data,
+                aspect="auto",
+                interpolation="none",
+                cmap=colormap,
+                vmin=vmin,
+                vmax=vmax,
+            )
+            axes[i, j].set_yticks([])
+            if i == 0:
+                axes[i, j].set_title(col_labels[j], fontsize=11)
+            if i == n_patterns - 1:
+                axes[i, j].set_xlabel("Time (steps)")
+
+        axes[i, 0].set_ylabel("Output Neuron")
+
+    plt.tight_layout()
+    return fig
+
+
+def plot_pattern_separation_pca(replay_dicts, epoch_len):
+    from sklearn.decomposition import PCA
+
+    # One epoch of latent activity per pattern: shape (time, neurons)
+    activities = [r["r_latent"][:epoch_len] for r in replay_dicts]
+    n_patterns = len(activities)
+    colors = plt.get_cmap("tab10").colors
+
+    combined = np.concatenate(activities, axis=0)
+    pca = PCA(n_components=3)
+    pca.fit(combined)
+    projections = [pca.transform(a) for a in activities]
+
+    fig = plt.figure(figsize=(12, 5))
+
+    ax3d = fig.add_subplot(121, projection="3d")
+    for i, proj in enumerate(projections):
+        ax3d.plot(
+            proj[:, 0],
+            proj[:, 1],
+            proj[:, 2],
+            color=colors[i],
+            linewidth=1.2,
+            alpha=0.8,
+            label=f"Pattern {i}",
+        )
+        ax3d.scatter(*proj[0, :3], color=colors[i], s=40, zorder=5)  # mark start
+    ax3d.set_xlabel("PC1")
+    ax3d.set_ylabel("PC2")
+    ax3d.set_zlabel("PC3")
+    ax3d.set_title("Replay trajectories (latent PC space)")
+    ax3d.legend()
+
+    ax2d = fig.add_subplot(122)
+    for i in range(n_patterns):
+        for j in range(i + 1, n_patterns):
+            a, b = projections[i], projections[j]
+            sim = np.sum(a * b, axis=1) / (
+                np.linalg.norm(a, axis=1) * np.linalg.norm(b, axis=1) + 1e-8
+            )
+            label = f"{i} vs {j}" if n_patterns > 2 else None
+            ax2d.plot(sim, color="steelblue", label=label)
+    ax2d.axhline(0, color="gray", linestyle="--", linewidth=0.8)
+    ax2d.set_xlabel("Time (steps)")
+    ax2d.set_ylabel("Cosine similarity")
+    ax2d.set_title("Pattern similarity over time (PC space)")
+    if n_patterns > 2:
+        ax2d.legend()
+
+    var_explained = pca.explained_variance_ratio_
+    fig.text(
+        0.5,
+        0.01,
+        f"PC1–3 explain {var_explained[:3].sum()*100:.1f}% variance "
+        f"({', '.join(f'{v*100:.1f}%' for v in var_explained[:3])})",
+        ha="center",
+        fontsize=9,
+        color="gray",
     )
-    ax2.set_xlabel(r"$t[s]$")
-    ax2.set_ylabel(r"Neuron")
-    ax2.set_title(r"Target")
-    ax2.axvline(train_target.shape[1], color="red", linestyle="--")
 
-    # Add x-ticks based on start time and step
-    ax2.set_xticks(np.arange(0, full_output.shape[1], 500 / step))
-    ax2.set_xticklabels([f"{x: .1f}" for x in xticks])
+    plt.tight_layout(rect=[0, 0.04, 1, 1])
+    return fig
 
-    # Add a single colorbar for both plots
-    cbar = fig.colorbar(im1, ax=[ax1, ax2])
-    cbar.set_label("Firing rate")
 
+def plot_neuron_selectivity(replay_dicts, epoch_len):
+    mean_rates = np.stack(
+        [r["r_latent"][:epoch_len].mean(axis=0) for r in replay_dicts]
+    )  # (n_patterns, neurons)
+
+    if len(replay_dicts) == 2:
+        rate_0, rate_1 = mean_rates[0], mean_rates[1]
+        selectivity = (rate_0 - rate_1) / (rate_0 + rate_1 + 1e-8)
+        sort_idx = np.argsort(selectivity)[::-1]
+
+        fig, axes = plt.subplots(1, 2, figsize=(14, 4))
+
+        axes[0].bar(
+            np.arange(len(selectivity)),
+            selectivity[sort_idx],
+            color=["steelblue" if s >= 0 else "tomato" for s in selectivity[sort_idx]],
+            width=1.0,
+            edgecolor="none",
+        )
+        axes[0].axhline(0, color="black", linewidth=0.8)
+        axes[0].set_xlabel("Neuron (sorted)")
+        axes[0].set_ylabel("Selectivity index\n(+1 = Pattern 0, −1 = Pattern 1)")
+        axes[0].set_title("Per-neuron selectivity")
+
+        im = axes[1].imshow(
+            mean_rates[:, sort_idx],
+            aspect="auto",
+            interpolation="none",
+            cmap="Blues",
+        )
+        axes[1].set_yticks([0, 1])
+        axes[1].set_yticklabels(["Pattern 0", "Pattern 1"])
+        axes[1].set_xlabel("Neuron (sorted by selectivity)")
+        axes[1].set_title("Mean firing rate during replay")
+        fig.colorbar(im, ax=axes[1], label="Mean rate")
+    else:
+        fig, ax = plt.subplots(figsize=(8, 4))
+        im = ax.imshow(mean_rates, aspect="auto", interpolation="none", cmap="Blues")
+        ax.set_yticks(np.arange(len(replay_dicts)))
+        ax.set_yticklabels([f"Pattern {i}" for i in range(len(replay_dicts))])
+        ax.set_xlabel("Neuron")
+        ax.set_title("Mean firing rate during replay")
+        fig.colorbar(im, ax=ax, label="Mean rate")
+
+    plt.tight_layout()
     return fig
 
 
@@ -396,7 +498,8 @@ def plot_principal_components(u_latent, target):
 
 def save_fig(fig, name, path, dpi=300):
     fig.savefig(path / name, dpi=dpi)
-    mlflow.log_figure(fig, f"figures/{name}")
+    if _mlflow_enabled:
+        mlflow.log_figure(fig, f"figures/{name}")
     plt.close(fig)
     print(f"Saved figure {name} to {path}")
 
@@ -506,7 +609,13 @@ def main(full_config, run_path, artifact_path, figure_path):
 
     train = load_pkl(artifact_path / "train_dict.pkl")
     val = load_pkl(artifact_path / "validation_dict.pkl")
-    replay = load_pkl(artifact_path / "replay_dict.pkl")
+    replay_dicts = []
+    i = 0
+    while (artifact_path / f"replay_dict_{i}.pkl").exists():
+        replay_dicts.append(load_pkl(artifact_path / f"replay_dict_{i}.pkl"))
+        i += 1
+    if not replay_dicts:
+        replay_dicts = [load_pkl(artifact_path / "replay_dict.pkl")]
     epoch = load_pkl(artifact_path / "epoch_dict.pkl")
     network = load_pkl(artifact_path / "network.pkl")
 
@@ -525,62 +634,26 @@ def main(full_config, run_path, artifact_path, figure_path):
     dt = sim_params.dt
     sim_step = track_params.sim_step
 
-    last_train = int(2 * pattern_duration / dt / sim_step)
-    train_output = train["r_visible"][-last_train:]
-    replay_output = replay["r_visible"][: last_train * 4]
-
-    last_train = int(pattern_duration / dt / sim_step)
-    first_replay = 1 * int(pattern_duration / dt / sim_step)
-
-    train_output = train["r_visible"][-last_train:].T
-    replay_output = replay["r_visible"][: first_replay * 5].T
-    train_target_u = train["u_inp_visible"][-last_train:].T
-    train_target = eq_phi(train_target_u, a=0.3, b=-58.0)
-
     dpi = 300
-    start_time = (
-        pattern_params.pattern_duration
-        * (sim_params.training_cycles - 1)
-        * sim_params.training_epochs
-    )
-    step = sim_params.dt * track_params.sim_step
+    epoch_len = int(pattern_params.pattern_duration / dt / sim_step)
 
     fig = plot_weights_grid(network)
     save_fig(fig, "weights_grid.png", figure_path, dpi)
 
-    fig = plot_activity_target_match(
-        train_output, replay_output, train_target, start_time, step
-    )
-    save_fig(fig, "activity_match.png", figure_path, dpi)
-
     fig = plot_weights_in_time(epoch, val, full_config)
     save_fig(fig, "weights_over_time.png", figure_path, dpi)
 
-    first_replay = 2 * int(pattern_duration / dt / sim_step)
-    train_output = train["r_visible"][-last_train:].T
-    replay_output = replay["r_visible"][:first_replay].T
-    train_target = val["r_target"][0].T
-    # hidden_activity = train["r_latent"][-last_train:].T
+    fig = plot_activity_target_match(replay_dicts, epoch_len)
+    save_fig(fig, "activity_target_match.png", figure_path, dpi)
 
-    # PCA
-    # latent_activity = replay["r_latent"][-2 * last_train :].T
-    # fig = plot_principal_components(latent_activity, target=train_target.T)
-    # save_fig(fig, "PCA.png", figure_path)
+    fig = plot_pattern_separation_pca(replay_dicts, epoch_len)
+    save_fig(fig, "pattern_separation_pca.png", figure_path, dpi)
 
-    replay_output = replay["r_visible"][:first_replay].T
-    epoch_len = int(pattern_duration / dt / sim_step)
-    fig = plot_activity_match(replay_output, epoch_len, train_target)
-    save_fig(fig, "activity_match_replay.png", figure_path, dpi)
+    fig = plot_neuron_selectivity(replay_dicts, epoch_len)
+    save_fig(fig, "neuron_selectivity.png", figure_path, dpi)
 
     fig = plot_connectivity_network(network.somatic_weights, num_vis=network.num_vis)
     save_fig(fig, "somatic_connectivity.png", figure_path, dpi)
-
-    dpi = 100
-    gif = False
-    if gif:
-        ani = plot_activity_in_time(train_output, replay_output, dt)
-        writer = PillowWriter(fps=30)
-        ani.save("figs/activity.gif", writer)
 
 
 if __name__ == "__main__":
@@ -588,6 +661,8 @@ if __name__ == "__main__":
     from pathlib import Path
 
     from utils import dict_to_namespace
+
+    _mlflow_enabled = False
 
     with open("config.toml", "rb") as f:
         config_dict = toml.load(f)
