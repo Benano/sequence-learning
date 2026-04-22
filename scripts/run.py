@@ -129,7 +129,7 @@ def main(parameter_tag, saving, debug):
         dataloader,
         train_tracker,
         validation_tracker,
-        replay_tracker,
+        replay_trackers,
         epoch_tracker,
     ) = train_main(
         full_config,
@@ -141,7 +141,8 @@ def main(parameter_tag, saving, debug):
     dataloader.save(artifact_path / "dataloader.pkl")
     validation_tracker.save_dict(artifact_path / "validation_dict.pkl")
     train_tracker.save_dict(artifact_path / "train_dict.pkl")
-    replay_tracker.save_dict(artifact_path / "replay_dict.pkl")
+    for i, rt in enumerate(replay_trackers):
+        rt.save_dict(artifact_path / f"replay_dict_{i}.pkl")
     epoch_tracker.save_dict(artifact_path / "epoch_dict.pkl")
     mlflow.log_artifact(str(artifact_path / "network.pkl"))
 
@@ -151,10 +152,11 @@ def main(parameter_tag, saving, debug):
         toml_w.dump(config_dict, f)
 
     if saving:
+        replay_fnames = [f"replay_dict_{i}.pkl" for i in range(len(replay_trackers))]
         for fname in [
             "network.pkl",
             "dataloader.pkl",
-            "replay_dict.pkl",
+            *replay_fnames,
             "train_dict.pkl",
             "epoch_dict.pkl",
             "validation_dict.pkl",

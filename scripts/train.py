@@ -352,28 +352,30 @@ def run_replay(
     experiment_params,
     track_params,
     targets,
-    replay_tracker,
+    replay_trackers,
 ):
     replay_duration = simulation_params.replay_cycles * dataloader.duration
-    losses = defaultdict(list)
     replay_network = copy.deepcopy(network)
 
-    for epoch in tqdm(range(simulation_params.replay_epochs)):
-        for en, pattern_dl in enumerate(dataloader):
-            replay_network.reset_activity()
+    for en, pattern_dl in enumerate(dataloader):
+        replay_network.reset_activity()
+        replay_tracker = replay_trackers[en]
+        losses = defaultdict(list)
 
-            nudge_network(
-                replay_network,
-                pattern_dl,
-                simulation_params.replay_cue_cycles,
-                learn=experiment_params.replay_learning,
-            )
+        u_target = pattern_dl.get_full_pattern(simulation_params.dt)[
+            :: track_params.sim_step
+        ]
+        r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
+        replay_tracker.store("r_target", r_target)
 
-            u_target = pattern_dl.get_full_pattern(simulation_params.dt)[
-                :: track_params.sim_step
-            ]
-            r_target = eq_phi(u_target, neuron_params.a, neuron_params.b)
+        nudge_network(
+            replay_network,
+            pattern_dl,
+            simulation_params.replay_cue_cycles,
+            learn=experiment_params.replay_learning,
+        )
 
+        for epoch in tqdm(range(simulation_params.replay_epochs)):
             for t in np.arange(0, replay_duration, simulation_params.dt):
                 replay_network(u_inp=None, learn=experiment_params.replay_learning)
                 replay_tracker.track(replay_network, t)
@@ -385,10 +387,10 @@ def run_replay(
             mse_loss_u = compute_loss(u_out, u_target, mse)
 
             mlflow.log_metric(f"replay_loss_r_pat_{en}", mse_loss_r, step=epoch)
-            losses[f"replay_loss_r_pat_{en}"].append(mse_loss_r)
-            losses[f"replay_loss_u_pat_{en}"].append(mse_loss_u)
+            losses["replay_loss_r"].append(mse_loss_r)
+            losses["replay_loss_u"].append(mse_loss_u)
 
-    replay_tracker.store("losses", losses)
+        replay_tracker.store("losses", losses)
 
 
 def main(full_config, pattern_path, rng):
@@ -441,7 +443,9 @@ def main(full_config, pattern_path, rng):
 
     train_tracker = Tracker(track_params.vars_train, track_params.sim_step)
     validation_tracker = Tracker(track_params.vars_val, track_params.sim_step)
-    replay_tracker = Tracker(track_params.vars_replay, track_params.sim_step)
+    replay_trackers = [
+        Tracker(track_params.vars_replay, track_params.sim_step) for _ in patterns
+    ]
     epoch_tracker = Tracker(track_params.vars_epoch, 1)
 
     run_training(
@@ -463,7 +467,7 @@ def main(full_config, pattern_path, rng):
         experiment_params,
         track_params,
         targets,
-        replay_tracker,
+        replay_trackers,
     )
 
     return (
@@ -471,7 +475,7 @@ def main(full_config, pattern_path, rng):
         dataloader,
         train_tracker,
         validation_tracker,
-        replay_tracker,
+        replay_trackers,
         epoch_tracker,
     )
 
