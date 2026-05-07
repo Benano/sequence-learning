@@ -422,6 +422,14 @@ def main(full_config, pattern_path, rng):
     patterns = load_patterns(
         experiment_params, pattern_params, network_params, pattern_path, rng
     )
+
+    copy_start = 5
+    copy_end = 10
+
+    sec_to_copy = patterns[0].pattern[:, copy_start:copy_end]
+    for i in range(len(patterns) - 1):
+        patterns[i + 1].pattern[:, copy_start:copy_end] = sec_to_copy
+
     dataloader = build_dataloader(
         patterns, experiment_params, pattern_params, simulation_params, neuron_params
     )
