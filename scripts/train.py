@@ -254,7 +254,7 @@ def run_training(
 ):
     """Run the supervised training loop with periodic validation."""
     u_target, r_target, r_target_real = targets
-    train_tracker, validation_tracker, epoch_tracker = trackers
+    train_tracker, validation_trackers, epoch_tracker = trackers
 
     c_t = 0.0
     nr_epochs = simulation_params.training_epochs
@@ -326,10 +326,14 @@ def run_training(
                 for t in np.arange(0, validation_duration, simulation_params.dt):
                     v_c_t = c_t + simulation_params.dt
                     network(u_inp=None, learn=False)
-                    validation_tracker.track(network, v_c_t)
+                    validation_trackers[en].track(network, v_c_t)
 
-                u_out = np.array(validation_tracker["u_visible"])[-2 * len(u_target) :]
-                r_out = np.array(validation_tracker["r_visible"])[-2 * len(u_target) :]
+                u_out = np.array(validation_trackers[en]["u_visible"])[
+                    -2 * len(u_target) :
+                ]
+                r_out = np.array(validation_trackers[en]["r_visible"])[
+                    -2 * len(u_target) :
+                ]
                 mse_loss_u = compute_loss(u_out, u_target, mse)
                 mse_loss_r = compute_loss(r_out, r_target, mse)
 
@@ -337,10 +341,11 @@ def run_training(
                 losses[f"val_loss_u_pat_{en}"].append(mse_loss_u)
                 losses[f"val_loss_r_pat_{en}"].append(mse_loss_r)
 
-    train_tracker.store("r_target", r_target)
-    train_tracker.store("r_target_real", r_target_real)
-    validation_tracker.store("r_target", r_target)
-    validation_tracker.store("losses", losses)
+                if epoch == 0:
+                    train_tracker.store("r_target", r_target)
+                    train_tracker.store("r_target_real", r_target_real)
+                    validation_trackers[en].store("r_target", r_target)
+                    validation_trackers[en].store("losses", losses)
 
 
 def run_replay(
@@ -442,9 +447,11 @@ def main(full_config, pattern_path, rng):
     targets = (u_target, r_target, r_target_real)
 
     train_tracker = Tracker(track_params.vars_train, track_params.sim_step)
-    validation_tracker = Tracker(track_params.vars_val, track_params.sim_step)
     replay_trackers = [
         Tracker(track_params.vars_replay, track_params.sim_step) for _ in patterns
+    ]
+    validation_trackers = [
+        Tracker(track_params.vars_val, track_params.sim_step) for _ in patterns
     ]
     epoch_tracker = Tracker(track_params.vars_epoch, 1)
 
@@ -456,7 +463,7 @@ def main(full_config, pattern_path, rng):
         noise_params,
         track_params,
         targets,
-        (train_tracker, validation_tracker, epoch_tracker),
+        (train_tracker, validation_trackers, epoch_tracker),
     )
     run_replay(
         network,
@@ -474,7 +481,7 @@ def main(full_config, pattern_path, rng):
         network,
         dataloader,
         train_tracker,
-        validation_tracker,
+        validation_trackers,
         replay_trackers,
         epoch_tracker,
     )

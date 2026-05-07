@@ -128,7 +128,7 @@ def main(parameter_tag, saving, debug):
         network,
         dataloader,
         train_tracker,
-        validation_tracker,
+        validation_trackers,
         replay_trackers,
         epoch_tracker,
     ) = train_main(
@@ -139,7 +139,8 @@ def main(parameter_tag, saving, debug):
 
     network.save(artifact_path / "network.pkl")
     dataloader.save(artifact_path / "dataloader.pkl")
-    validation_tracker.save_dict(artifact_path / "validation_dict.pkl")
+    for i, rt in enumerate(validation_trackers):
+        rt.save_dict(artifact_path / f"validation_dict_{i}.pkl")
     train_tracker.save_dict(artifact_path / "train_dict.pkl")
     for i, rt in enumerate(replay_trackers):
         rt.save_dict(artifact_path / f"replay_dict_{i}.pkl")
