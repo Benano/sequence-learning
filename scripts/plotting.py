@@ -417,6 +417,222 @@ def plot_neuron_selectivity(replay_dicts, epoch_len):
     return fig
 
 
+def plot_selectivity_subnetworks(network, replay_dicts, epoch_len):
+    from networkx.algorithms.community import greedy_modularity_communities
+
+    n_patterns = len(replay_dicts)
+
+    # Latent-latent block of learned dendritic weights
+    W = network.dendritic_weights[network.view_lat_lat]  # (num_lat, num_lat)
+    W_abs = np.abs(W)
+
+    # Mean firing rates per pattern: (n_patterns, num_lat)
+    mean_rates = np.stack(
+        [r["r_latent"][:epoch_len].mean(axis=0) for r in replay_dicts]
+    )
+
+    # Selectivity index per neuron
+    if n_patterns == 2:
+        r0, r1 = mean_rates[0], mean_rates[1]
+        selectivity = (r0 - r1) / (r0 + r1 + 1e-8)
+    else:
+        selectivity = np.zeros(W.shape[0])
+
+    # Fixed layout from absolute weights — same positions in both panels
+    G_layout = nx.from_numpy_array(W_abs)
+    pos = nx.kamada_kawai_layout(G_layout, weight="weight")
+
+    # Edge threshold: only show top 20% by |weight|
+    nonzero = W_abs[W_abs > 0]
+    threshold = np.percentile(nonzero, 80) if len(nonzero) else 0.0
+
+    sel_cmap = plt.get_cmap("RdBu_r")
+    node_colors = sel_cmap((selectivity + 1) / 2)  # [-1,1] -> [0,1]
+    tab_colors = plt.get_cmap("tab10").colors
+
+    fig, axes = plt.subplots(1, n_patterns, figsize=(7 * n_patterns, 6), squeeze=False)
+    axes = axes[0]
+
+    for i, ax in enumerate(axes):
+        r_pat = mean_rates[i]
+        node_sizes = 50 + 400 * (r_pat / (r_pat.max() + 1e-8))
+
+        # Community detection on pattern-weighted adjacency
+        W_pat = W_abs * np.outer(r_pat, r_pat)
+        communities = greedy_modularity_communities(
+            nx.from_numpy_array(W_pat), weight="weight"
+        )
+        community_map = {n: ci for ci, comm in enumerate(communities) for n in comm}
+
+        # Edges filtered by absolute weight threshold
+        G = nx.from_numpy_array(W)
+        edges = [
+            (u, v) for u, v, d in G.edges(data=True) if abs(d["weight"]) >= threshold
+        ]
+        edge_colors = [
+            "tomato" if G[u][v]["weight"] > 0 else "steelblue" for u, v in edges
+        ]
+
+        ax.set_facecolor("#f9f9f9")
+        nx.draw_networkx_edges(
+            G,
+            pos,
+            edgelist=edges,
+            edge_color=edge_colors,
+            alpha=0.35,
+            width=0.8,
+            ax=ax,
+            arrows=False,
+        )
+        for ci, comm in enumerate(communities):
+            nl = list(comm)
+            nx.draw_networkx_nodes(
+                G,
+                pos,
+                nodelist=nl,
+                node_color=[node_colors[n] for n in nl],
+                node_size=[node_sizes[n] for n in nl],
+                edgecolors=tab_colors[ci % len(tab_colors)],
+                linewidths=2.0,
+                ax=ax,
+            )
+        ax.set_title(f"Pattern {i}  —  {len(communities)} communities")
+        ax.axis("off")
+
+    sm = plt.cm.ScalarMappable(cmap=sel_cmap, norm=plt.Normalize(vmin=-1, vmax=1))
+    sm.set_array([])
+    fig.colorbar(
+        sm,
+        ax=axes[-1],
+        label="Selectivity  (+1 = Pat 0,  −1 = Pat 1)",
+        fraction=0.046,
+        pad=0.04,
+        shrink=0.7,
+    )
+    fig.suptitle("Latent subnetworks weighted by pattern activity")
+    plt.tight_layout()
+    return fig
+
+
+def plot_separation_timecourse(val_dicts, epoch_len, validation_cycles=2):
+    from sklearn.decomposition import PCA
+
+    n_patterns = len(val_dicts)
+    val_epoch_len = validation_cycles * epoch_len
+
+    # (total_val_steps, neurons) — concatenated across all validation checkpoints
+    activities = [np.array(v["r_latent"]) for v in val_dicts]
+    n_checkpoints = activities[0].shape[0] // val_epoch_len
+    # reshape to (n_checkpoints, val_epoch_len, neurons)
+    act_epochs = [
+        a[: n_checkpoints * val_epoch_len].reshape(n_checkpoints, val_epoch_len, -1)
+        for a in activities
+    ]
+
+    cosine_sims = []
+    mean_abs_sel = []
+
+    for ep in range(n_checkpoints):
+        # use steady-state portion (last epoch_len steps)
+        ep_acts = [
+            a[ep, -epoch_len:] for a in act_epochs
+        ]  # list of (epoch_len, neurons)
+
+        # fit PCA jointly on this checkpoint
+        combined = np.concatenate(ep_acts, axis=0)
+        pca = PCA(n_components=3)
+        pca.fit(combined)
+        projs = [pca.transform(a) for a in ep_acts]
+
+        # mean cosine similarity across time for each pattern pair
+        pair_sims = []
+        for i in range(n_patterns):
+            for j in range(i + 1, n_patterns):
+                a, b = projs[i], projs[j]
+                sim = np.mean(
+                    np.sum(a * b, axis=1)
+                    / (np.linalg.norm(a, axis=1) * np.linalg.norm(b, axis=1) + 1e-8)
+                )
+                pair_sims.append(sim)
+        cosine_sims.append(np.mean(pair_sims))
+
+        # mean absolute selectivity
+        mean_rates = np.stack(
+            [a.mean(axis=0) for a in ep_acts]
+        )  # (n_patterns, neurons)
+        if n_patterns == 2:
+            r0, r1 = mean_rates[0], mean_rates[1]
+            sel = (r0 - r1) / (r0 + r1 + 1e-8)
+            mean_abs_sel.append(np.mean(np.abs(sel)))
+
+    epochs = np.arange(n_checkpoints)
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+    axes[0].plot(epochs, cosine_sims, color="steelblue")
+    axes[0].axhline(0, color="gray", linestyle="--", linewidth=0.8)
+    axes[0].set_xlabel("Validation checkpoint")
+    axes[0].set_ylabel("Mean cosine similarity (PC space)")
+    axes[0].set_title("Pattern similarity over training")
+
+    if mean_abs_sel:
+        axes[1].plot(epochs, mean_abs_sel, color="tomato")
+        axes[1].set_xlabel("Validation checkpoint")
+        axes[1].set_ylabel("Mean |selectivity index|")
+        axes[1].set_title("Neuron specialization over training")
+
+    plt.tight_layout()
+    return fig
+
+
+def plot_selectivity_evolution(val_dicts, epoch_len, validation_cycles=2):
+    n_patterns = len(val_dicts)
+    val_epoch_len = validation_cycles * epoch_len
+
+    activities = [np.array(v["r_latent"]) for v in val_dicts]
+    n_checkpoints = activities[0].shape[0] // val_epoch_len
+    # (n_checkpoints, val_epoch_len, neurons)
+    act_epochs = [
+        a[: n_checkpoints * val_epoch_len].reshape(n_checkpoints, val_epoch_len, -1)
+        for a in activities
+    ]
+
+    # Mean firing rate per neuron per checkpoint: (n_checkpoints, neurons)
+    mean_rates = [a[:, -epoch_len:, :].mean(axis=1) for a in act_epochs]
+
+    # Sort neurons by final selectivity
+    if n_patterns == 2:
+        r0, r1 = mean_rates[0][-1], mean_rates[1][-1]
+        selectivity = (r0 - r1) / (r0 + r1 + 1e-8)
+        sort_idx = np.argsort(selectivity)[::-1]
+    else:
+        final = np.stack([m[-1] for m in mean_rates])
+        sort_idx = np.argsort(np.argmax(final, axis=0))
+
+    vmax = max(m.max() for m in mean_rates)
+
+    fig, axes = plt.subplots(
+        1, n_patterns, figsize=(6 * n_patterns, 5), sharey=True, squeeze=False
+    )
+    axes = axes[0]
+
+    for i, (ax, rates) in enumerate(zip(axes, mean_rates)):
+        im = ax.imshow(
+            rates[:, sort_idx].T,  # (neurons, checkpoints)
+            aspect="auto",
+            interpolation="none",
+            cmap="Blues",
+            vmin=0,
+            vmax=vmax,
+        )
+        ax.set_title(f"Pattern {i}")
+        ax.set_xlabel("Validation checkpoint")
+
+    axes[0].set_ylabel("Neuron (sorted by final selectivity)")
+    fig.colorbar(im, ax=axes[-1], label="Mean firing rate", fraction=0.046, pad=0.04)
+    plt.tight_layout()
+    return fig
+
+
 def plot_activity_match(replay_output, epoch_len, target):
     full_output = replay_output
     len_target = target.shape[1]
@@ -608,7 +824,14 @@ def main(full_config, run_path, artifact_path, figure_path):
     from utils import dict_to_namespace
 
     train = load_pkl(artifact_path / "train_dict.pkl")
-    val = load_pkl(artifact_path / "validation_dict.pkl")
+    val_dicts = []
+    i = 0
+    while (artifact_path / f"validation_dict_{i}.pkl").exists():
+        val_dicts.append(load_pkl(artifact_path / f"validation_dict_{i}.pkl"))
+        i += 1
+    if not val_dicts:
+        val_dicts = [load_pkl(artifact_path / "validation_dict.pkl")]
+    val = val_dicts[0]
     replay_dicts = []
     i = 0
     while (artifact_path / f"replay_dict_{i}.pkl").exists():
@@ -630,7 +853,6 @@ def main(full_config, run_path, artifact_path, figure_path):
     pattern_params = full_config.pattern_params
     track_params = full_config.tracking_params
 
-    pattern_duration = pattern_params.pattern_duration * pattern_params.pattern_dt
     dt = sim_params.dt
     sim_step = track_params.sim_step
 
@@ -651,6 +873,20 @@ def main(full_config, run_path, artifact_path, figure_path):
 
     fig = plot_neuron_selectivity(replay_dicts, epoch_len)
     save_fig(fig, "neuron_selectivity.png", figure_path, dpi)
+
+    fig = plot_selectivity_subnetworks(network, replay_dicts, epoch_len)
+    save_fig(fig, "selectivity_subnetworks.png", figure_path, dpi)
+
+    if len(val_dicts) > 1:
+        fig = plot_separation_timecourse(
+            val_dicts, epoch_len, sim_params.validation_cycles
+        )
+        save_fig(fig, "separation_timecourse.png", figure_path, dpi)
+
+        fig = plot_selectivity_evolution(
+            val_dicts, epoch_len, sim_params.validation_cycles
+        )
+        save_fig(fig, "selectivity_evolution.png", figure_path, dpi)
 
     fig = plot_connectivity_network(network.somatic_weights, num_vis=network.num_vis)
     save_fig(fig, "somatic_connectivity.png", figure_path, dpi)
