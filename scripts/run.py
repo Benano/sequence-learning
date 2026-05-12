@@ -133,6 +133,7 @@ def main(parameter_tag, saving, debug):
         epoch_tracker,
     ) = train_main(
         full_config,
+        artifact_path,
         pattern_path,
         rng,
     )
@@ -154,13 +155,16 @@ def main(parameter_tag, saving, debug):
 
     if saving:
         replay_fnames = [f"replay_dict_{i}.pkl" for i in range(len(replay_trackers))]
+        validation_fnames = [
+            f"validation_dict_{i}.pkl" for i in range(len(validation_trackers))
+        ]
         for fname in [
             "network.pkl",
             "dataloader.pkl",
             *replay_fnames,
             "train_dict.pkl",
             "epoch_dict.pkl",
-            "validation_dict.pkl",
+            *validation_fnames,
         ]:
             mlflow.log_artifact(str(artifact_path / fname))
         mlflow.set_tag("full_save", "true")
