@@ -615,6 +615,53 @@ def plot_principal_components(u_latent, target):
     return fig
 
 
+def plot_pattern_temporal_specificity(replay_dicts, epoch_len):
+    """Compare replay activity of two patterns across time.
+
+    Rows 1-2: target patterns. Rows 3-4: absolute difference in replay activity,
+    per neuron and summed. A dip in row 4 at a shared section indicates the network
+    reuses similar representations there.
+    """
+    vis1 = np.array(replay_dicts[0]["r_visible"])[:epoch_len]  # (time, vis_neurons)
+    vis2 = np.array(replay_dicts[1]["r_visible"])[:epoch_len]
+
+    lat1 = np.array(replay_dicts[0]["r_latent"])[:epoch_len]  # (time, lat_neurons)
+    lat2 = np.array(replay_dicts[1]["r_latent"])[:epoch_len]
+
+    abs_diff = np.abs(lat1 - lat2)
+    summed_diff = abs_diff.sum(axis=1)
+    cos_sim = np.sum(lat1 * lat2, axis=1) / (
+        np.linalg.norm(lat1, axis=1) * np.linalg.norm(lat2, axis=1) + 1e-8
+    )
+
+    fig, axes = plt.subplots(5, 1, figsize=(6, 8), sharex=True)
+
+    axes[0].imshow(vis1.T, aspect="auto", cmap="Blues", interpolation="none")
+    axes[0].set_ylabel("Neuron")
+    axes[0].set_title("Replay activity pattern 1 (visible)")
+
+    axes[1].imshow(vis2.T, aspect="auto", cmap="Blues", interpolation="none")
+    axes[1].set_ylabel("Neuron")
+    axes[1].set_title("Replay activity pattern 2 (visible)")
+
+    axes[2].imshow(abs_diff.T, aspect="auto", cmap="inferno_r", interpolation="none")
+    axes[2].set_ylabel("Latent neuron")
+    axes[2].set_title("|Latent act1 − act2| per neuron per timestep")
+
+    axes[3].plot(summed_diff, color="steelblue")
+    axes[3].set_ylabel("Sum |diff|")
+    axes[3].set_title("Summed |Latent act1 − act2| over neurons")
+
+    axes[4].plot(cos_sim, color="tomato")
+    axes[4].axhline(0, color="gray", linewidth=0.8, linestyle="--")
+    axes[4].set_ylabel("Cosine sim")
+    axes[4].set_xlabel("Time step")
+    axes[4].set_title("Population cosine similarity (latent)")
+
+    plt.tight_layout()
+    return fig
+
+
 def save_fig(fig, name, path, dpi=300):
     fig.savefig(path / name, dpi=dpi)
     if _mlflow_enabled:
@@ -777,8 +824,9 @@ def main(full_config, run_path, artifact_path, figure_path):
     fig = plot_neuron_selectivity(replay_dicts, epoch_len)
     save_fig(fig, "neuron_selectivity.png", figure_path, dpi)
 
-    fig = plot_selectivity_subnetworks(network, replay_dicts, epoch_len)
-    save_fig(fig, "selectivity_subnetworks.png", figure_path, dpi)
+    if len(replay_dicts) >= 2:
+        fig = plot_pattern_temporal_specificity(replay_dicts, epoch_len)
+        save_fig(fig, "pattern_temporal_specificity.png", figure_path, dpi)
 
     if len(val_dicts) > 1:
         fig = plot_separation_timecourse(
