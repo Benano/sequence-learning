@@ -133,7 +133,6 @@ def main(parameter_tag, saving, debug):
         epoch_tracker,
     ) = train_main(
         full_config,
-        artifact_path,
         pattern_path,
         rng,
     )

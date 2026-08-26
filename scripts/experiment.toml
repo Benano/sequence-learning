@@ -1,0 +1,13 @@
+[experiment_params]
+mlflow_experiment = "Multipattern"  # string: name of the MLflow experiment
+seed = 2                           # int: global random seed
+patterns = ['random']
+group_tag = ['multi_pattern_shuffle']               # list[str]: tags for grouping/filtering runs in MLflow
+pre_transforms =  ['to_biounits']  # list[str]: transforms applied once before training — ORDER MATTERS
+online_transforms =  []            # list[str]: transforms applied each step during training (e.g. 'noise_corr', 'noise_white')
+dataloader_type = "shuffle"
+shuffle_block_size = 4       # int: consecutive presentations of each pattern before switching (1=random, N>1=blocked)
+
+[pattern_params]
+non_markov_type = "none"          # str: "multi" (patterns concatenated in width, simultaneous) or "shuffle" (patterns presented sequentially, one at a time)
+replay_learning = false             # bool: if true, weights are updated during replay

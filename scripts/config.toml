@@ -1,11 +1,11 @@
 [experiment_params]
-mlflow_experiment = "Multipattern"  # string: name of the MLflow experiment
+mlflow_experiment = "Stacked_offset"  # string: name of the MLflow experiment
 seed = 2                           # int: global random seed
-patterns = ['fuer_elise_original']
-group_tag = ['multi_pattern_shuffle']               # list[str]: tags for grouping/filtering runs in MLflow
+patterns = ['fuer_elise_original', 'fuer_elise_reverse']
+group_tag = ['vanilla_replay_shift']               # list[str]: tags for grouping/filtering runs in MLflow
 pre_transforms =  ['to_biounits']  # list[str]: transforms applied once before training — ORDER MATTERS
 online_transforms =  []            # list[str]: transforms applied each step during training (e.g. 'noise_corr', 'noise_white')
-dataloader_type = "shuffle"          # str: "multi" (patterns concatenated in width, simultaneous) or "shuffle" (patterns presented sequentially, one at a time)
+dataloader_type = "stacked"          # str: "stacked" (patterns concatenated in width, simultaneous) or "shuffle" (patterns presented sequentially, one at a time)
 shuffle_block_size = 4       # int: consecutive presentations of each pattern before switching (1=random, N>1=blocked)
 replay_learning = true             # bool: if true, weights are updated during replay
 
@@ -45,6 +45,7 @@ training_epochs = 20   # int: number of full training epochs
 replay_epochs = 50      # int: number of replay epochs after training
 training_cycles = 50    # int: pattern repetitions per training epoch
 validation_cycles = 2   # int: pattern repetitions per validation pass
+validation_cue_cycles = 2   # int: pattern repetitions per validation pass
 replay_cycles = 2       # int: pattern repetitions per replay epoch
 eta_out = 0.001         # float > 0: learning rate for visible (output) weights (scaled internally by 1/dt)
 eta_lat = 0.01          # float > 0: learning rate for latent weights (scaled internally by 1/dt)

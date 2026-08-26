@@ -105,7 +105,7 @@ def build_dataloader(
         online_transform_dict[t] for t in experiment_params.online_transforms
     ]
 
-    dataloader_type = getattr(experiment_params, "dataloader_type", "multi")
+    dataloader_type = getattr(experiment_params, "dataloader_type")
 
     if len(patterns) > 1:
         if dataloader_type == "shuffle":
@@ -273,16 +273,6 @@ def run_training(
         if hasattr(dataloader, "reshuffle"):
             dataloader.reshuffle()
         epoch_tracker.track(network, c_t)
-
-        # record = []
-        # for t in np.arange(0, training_duration, simulation_params.dt):
-        #     record.append(dataloader(t))
-
-        # record = np.array(record)
-        # fig, ax = plt.subplots()
-        # ax.imshow(record.T, aspect='auto', interpolation='none')
-        # plt.show()
-        # breakpoint()
 
         for t in np.arange(0, training_duration, simulation_params.dt):
             network(
@@ -462,6 +452,8 @@ def main(full_config, pattern_path, rng):
         Tracker(track_params.vars_val, track_params.sim_step) for _ in patterns
     ]
     epoch_tracker = Tracker(track_params.vars_epoch, 1)
+
+    breakpoint()
 
     run_training(
         network,
