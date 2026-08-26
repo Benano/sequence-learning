@@ -197,7 +197,12 @@ def setup_network(weight_params, network_params, neuron_params, rng):
 
 
 def log_per_pattern_losses(r_out, r_target, widths, prefix, epoch, losses):
-    """Compute and log per-pattern MSE losses for multi-pattern dataloaders."""
+    """Log one MSE per stacked sub-pattern by slicing the visible columns.
+
+    ``widths`` are the sub-pattern widths in the order they were concatenated,
+    so column block i of the readout is scored against the matching block of
+    the target.
+    """
     c_width = 0
     for i, w in enumerate(widths):
         loss = compute_loss(
@@ -206,8 +211,18 @@ def log_per_pattern_losses(r_out, r_target, widths, prefix, epoch, losses):
             mse,
         )
         c_width += w
-        mlflow.log_metric(f"{prefix}_loss_pat_{i}", loss, step=epoch)
-        losses[f"{prefix}_loss_pat_{i}"].append(loss)
+        mlflow.log_metric(f"{prefix}_pat_{i}", loss, step=epoch)
+        losses[f"{prefix}_pat_{i}"].append(loss)
+
+
+def stacked_widths(pattern_dl):
+    """Return the sub-pattern widths if this stream stacks several patterns.
+
+    A stacked stream is scored once over the whole visible population and then
+    split by column; every other stream is a single pattern and returns None.
+    """
+    widths = getattr(pattern_dl, "widths", None)
+    return widths if widths is not None and len(widths) > 1 else None
 
 
 def nudge_network(
@@ -327,9 +342,18 @@ def run_training(
                 mse_loss_u = compute_loss(u_out, u_target, mse)
                 mse_loss_r = compute_loss(r_out, r_target, mse)
 
-                mlflow.log_metric(f"val_loss_r_pat_{en}", mse_loss_r, step=epoch)
-                losses[f"val_loss_u_pat_{en}"].append(mse_loss_u)
-                losses[f"val_loss_r_pat_{en}"].append(mse_loss_r)
+                widths = stacked_widths(pattern_dl)
+                if widths is None:
+                    mlflow.log_metric(f"val_loss_r_pat_{en}", mse_loss_r, step=epoch)
+                    losses[f"val_loss_u_pat_{en}"].append(mse_loss_u)
+                    losses[f"val_loss_r_pat_{en}"].append(mse_loss_r)
+                else:
+                    mlflow.log_metric("val_loss_r_all", mse_loss_r, step=epoch)
+                    losses["val_loss_u_all"].append(mse_loss_u)
+                    losses["val_loss_r_all"].append(mse_loss_r)
+                    log_per_pattern_losses(
+                        r_out, r_target, widths, "val_loss_r", epoch, losses
+                    )
 
                 if epoch == 0:
                     train_tracker.store("r_target", r_target)
@@ -366,7 +390,7 @@ def run_replay(
         nudge_network(
             replay_network,
             pattern_dl,
-            simulation_params.replay_cue_cycles,
+            simulation_params.eval_cue_cycles,
             learn=experiment_params.replay_learning,
         )
 
@@ -381,7 +405,14 @@ def run_replay(
             mse_loss_r = compute_loss(r_out, r_target, mse)
             mse_loss_u = compute_loss(u_out, u_target, mse)
 
-            mlflow.log_metric(f"replay_loss_r_pat_{en}", mse_loss_r, step=epoch)
+            widths = stacked_widths(pattern_dl)
+            if widths is None:
+                mlflow.log_metric(f"replay_loss_r_pat_{en}", mse_loss_r, step=epoch)
+            else:
+                mlflow.log_metric("replay_loss_r_all", mse_loss_r, step=epoch)
+                log_per_pattern_losses(
+                    r_out, r_target, widths, "replay_loss_r", epoch, losses
+                )
             losses["replay_loss_r"].append(mse_loss_r)
             losses["replay_loss_u"].append(mse_loss_u)
 
@@ -444,12 +475,15 @@ def main(full_config, pattern_path, rng):
     r_target_real = eq_phi(u_target_real, neuron_params.a, neuron_params.b)
     targets = (u_target, r_target, r_target_real)
 
+    nr_streams = sum(1 for _ in dataloader)
+
     train_tracker = Tracker(track_params.vars_train, track_params.sim_step)
     replay_trackers = [
-        Tracker(track_params.vars_replay, track_params.sim_step) for _ in patterns
+        Tracker(track_params.vars_replay, track_params.sim_step)
+        for _ in range(nr_streams)
     ]
     validation_trackers = [
-        Tracker(track_params.vars_val, track_params.sim_step) for _ in patterns
+        Tracker(track_params.vars_val, track_params.sim_step) for _ in range(nr_streams)
     ]
     epoch_tracker = Tracker(track_params.vars_epoch, 1)
 

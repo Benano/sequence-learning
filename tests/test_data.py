@@ -9,6 +9,7 @@ from elise.data import (
     ContinuousDataloader,
     Dataloader,
     MultiHotPattern,
+    MultiPatternDataloader,
     OneHotPattern,
     Pattern,
     ShuffleDataloader,
@@ -600,3 +601,65 @@ class TestShuffleDataloader:
             (base_sequence, base_sequence2, base_sequence3), axis=0
         )
         assert_allclose(res, expected)
+
+
+#######################################
+# test the MultiPatternDataloader     #
+#######################################
+
+
+class TestMultiPatternDataloader:
+    def test_stacking(self, multisequence, base_sequence):
+        dataloader = MultiPatternDataloader(patterns=multisequence)
+
+        assert dataloader.widths == [p.width for p in multisequence]
+        assert dataloader.width == sum(p.width for p in multisequence)
+        assert dataloader(0.0).shape == (dataloader.width,)
+
+    def test_iter_yields_the_stacked_loader(self, multisequence):
+        """Stacked patterns share one visible population, so iteration yields
+        a single stream covering all of them -- not one stream per pattern, as
+        ShuffleDataloader does."""
+        dataloader = MultiPatternDataloader(patterns=multisequence)
+
+        streams = list(dataloader)
+
+        assert len(streams) == 1
+        assert streams[0] is dataloader
+        assert streams[0](0.0).shape == (dataloader.width,)
+
+    def test_get_full_pattern_width_matches_call(self, multisequence):
+        dataloader = MultiPatternDataloader(patterns=multisequence)
+
+        full = dataloader.get_full_pattern(dt=DT)
+
+        assert full.shape[1] == dataloader.width
+        assert len(full) == round(dataloader.duration / DT)
+
+    def test_get_full_pattern_column_blocks(self, multisequence):
+        """Column block i of the stacked pattern is pattern i over the same
+        times.  Patterns shorter than the longest one wrap, which is why this
+        samples the children rather than comparing against their own full
+        patterns."""
+        dataloader = MultiPatternDataloader(patterns=multisequence)
+
+        full = dataloader.get_full_pattern(dt=DT)
+        times = [i * DT for i in range(len(full))]
+
+        start = 0
+        for width, child in zip(dataloader.widths, dataloader.dataloaders):
+            expected = np.array([child(t, offset=DT * 0.01) for t in times])
+            assert_allclose(full[:, start : start + width], expected)
+            start += width
+
+    def test_get_full_pattern_honours_online_transforms(
+        self, multisequence, transform_plus
+    ):
+        dataloader = MultiPatternDataloader(
+            patterns=multisequence, online_transform=[transform_plus]
+        )
+
+        clean = dataloader.get_full_pattern(dt=DT, online_transforms=False)
+        transformed = dataloader.get_full_pattern(dt=DT, online_transforms=True)
+
+        assert_allclose(transformed, transform_plus(clean))

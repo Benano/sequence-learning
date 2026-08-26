@@ -984,12 +984,20 @@ class MultiPatternDataloader(BaseDataloader):
     def iter(self, t_start: float, t_stop: float, dt: float):
         t = t_start
         while t < t_stop:
-            yield t, self.__call__(t)
+            yield t, self.__call__(t, offset=dt * 0.01)
             t += dt
 
     def __iter__(self):
-        """Yield each constituent single-pattern dataloader."""
-        yield from self.dataloaders
+        """Yield the stacked loader itself, as a single evaluation unit.
+
+        The stored patterns occupy disjoint slices of one visible population
+        and are always presented together, so there is one thing to cue and
+        one thing to replay -- unlike :class:`ShuffleDataloader`, where each
+        pattern is a separate trial.  Per-pattern quality is read off a single
+        run by slicing the output columns with :attr:`widths`.  Use
+        :attr:`dataloaders` to reach the individual loaders directly.
+        """
+        yield self
 
     def get_individual_patterns(self, dt: float):
         """
@@ -1003,12 +1011,26 @@ class MultiPatternDataloader(BaseDataloader):
         return [dl.get_full_pattern(dt) for dl in self.dataloaders]
 
     def get_full_pattern(self, dt: float, concat=True, num=1, online_transforms=False):
-        if concat:
-            full_pattern = np.array(
-                [pattern for _, pattern in self.iter(0, self.duration * num, dt)]
-            )
-        else:
-            full_pattern = [dl.get_full_pattern(dt) for dl in self.dataloaders]
+        if not concat:
+            return [
+                dl.get_full_pattern(dt, online_transforms=online_transforms)
+                for dl in self.dataloaders
+            ]
+
+        # The children are sampled through self.iter (not their own
+        # get_full_pattern) because they may have different durations; toggling
+        # their flag is how online transforms are suppressed on that path.
+        for dl in self.dataloaders:
+            dl.apply_online_transforms = int(online_transforms)
+        try:
+            # Stop half a step short, as DiscreteDataloader does, so float
+            # accumulation in iter cannot sneak in an extra sample and make
+            # the target one row longer than the single-pattern targets.
+            stop = self.duration * num - 0.5 * dt
+            full_pattern = np.array([pattern for _, pattern in self.iter(0, stop, dt)])
+        finally:
+            for dl in self.dataloaders:
+                dl.apply_online_transforms = 1
 
         return full_pattern
 
